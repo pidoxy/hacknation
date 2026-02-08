@@ -1,0 +1,48 @@
+[
+  {
+    "title": "Regional Deployment Plan",
+    "region": "Greater Accra",
+    "capability_gap": "Emergency Care",
+    "priority": "High",
+    "assets": [],
+    "actions": [],
+    "notes": "",
+    "created_at": "2026-02-08T07:30:55.510Z",
+    "id": "2d68233c-08f6-4a39-b264-1933e32df609"
+  },
+  {
+    "title": "Regional Deployment Plan",
+    "region": "Greater Accra",
+    "capability_gap": "Emergency Care",
+    "priority": "High",
+    "assets": [],
+    "actions": [],
+    "notes": "",
+    "created_at": "2026-02-08T07:31:13.477Z",
+    "id": "832a6153-c337-41af-9bb7-21bd0132def0"
+  },
+  {
+    "title": "Regional Deployment Plan",
+    "region": "Greater Accra",
+    "capability_gap": "Emergency Care",
+    "priority": "High",
+    "assets": [],
+    "actions": [],
+    "notes": "",
+    "created_at": "2026-02-08T07:31:16.793Z",
+    "id": "ba0cbb7d-b6eb-40cc-a139-8c4f73dba4f8"
+  },
+  {
+    "title": "Deploy Surgery - Eastern",
+    "region": "Eastern",
+    "capability_gap": "Surgery",
+    "priority": "High",
+    "assets": [],
+    "actions": [
+      "Deploy surgery services to Eastern"
+    ],
+    "notes": "Deploy surgery services to Eastern. Currently 0 facilities offer this in a region with an estimated population of 3,050,000. Nearest surgery is in Greater Accra.",
+    "created_at": "2026-02-08T07:31:44.910Z",
+    "id": "14918ad4-703a-4052-8da2-9509b9f4ad7c"
+  }
+]

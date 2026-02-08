@@ -8,6 +8,7 @@ from config import get_settings
 from models.queries import AgentStep, ChatResponse
 from services.data_loader import data_store, CAPABILITY_CATEGORIES, REGION_POPULATIONS
 from services.vector_store import vector_store
+from services.geospatial import build_geospatial_response
 
 
 SUPERVISOR_SYSTEM_PROMPT = """You are an AI healthcare intelligence agent for the Virtue Foundation.
@@ -82,12 +83,33 @@ class AgentSupervisor:
             output_summary=f"Category: {classification.get('category', 'basic')}, "
                           f"Filters: {json.dumps(classification.get('filters', {}))}",
             data_sources=["user_input"],
+            citations=[{"type": "input", "label": "user_query"}],
             duration_ms=int((time.time() - start_time) * 1000),
         ))
 
         # Step 2: Gather relevant data
         step2_start = time.time()
         context_data = self._gather_context(message, classification)
+        step2_citations = [
+            {
+                "type": "facility",
+                "id": f["unique_id"],
+                "label": f["name"],
+                "region": f.get("region", ""),
+            }
+            for f in context_data.get("facilities", [])[:5]
+        ]
+        if classification.get("filters", {}).get("region"):
+            step2_citations.append({
+                "type": "region",
+                "label": classification["filters"]["region"],
+            })
+        if classification.get("category") in ["medical_desert", "recommendation"]:
+            step2_citations.append({
+                "type": "matrix",
+                "label": "Capability coverage matrix",
+            })
+
         agent_trace.append(AgentStep(
             step_number=2,
             agent_name=self._get_agent_name(classification),
@@ -95,13 +117,28 @@ class AgentSupervisor:
             input_summary=f"Searching with filters: {json.dumps(classification.get('filters', {}))}",
             output_summary=f"Found {len(context_data.get('facilities', []))} relevant facilities, "
                           f"{len(context_data.get('desert_data', []))} desert entries",
-            data_sources=["faiss_index", "facility_database", "desert_matrix"],
+            data_sources=[
+                "faiss_index",
+                "facility_database",
+                "desert_matrix",
+                "geospatial_calc",
+            ],
+            citations=step2_citations,
             duration_ms=int((time.time() - step2_start) * 1000),
         ))
 
         # Step 3: Generate response
         step3_start = time.time()
         answer, sources, viz_hint = self._generate_response(message, classification, context_data)
+        step3_citations = [
+            {
+                "type": "facility",
+                "id": s.get("facility_id"),
+                "label": s.get("facility_name"),
+                "region": s.get("region", ""),
+            }
+            for s in sources[:5]
+        ]
         agent_trace.append(AgentStep(
             step_number=3,
             agent_name="Response Generator",
@@ -109,6 +146,7 @@ class AgentSupervisor:
             input_summary=f"Context: {len(str(context_data))} chars of data",
             output_summary=f"Generated {len(answer)} char response with {len(sources)} sources",
             data_sources=["openai_gpt"],
+            citations=step3_citations,
             duration_ms=int((time.time() - step3_start) * 1000),
         ))
 
@@ -118,6 +156,7 @@ class AgentSupervisor:
             agent_trace=agent_trace,
             visualization_hint=viz_hint,
             conversation_id=conversation_id,
+            geospatial=context_data.get("geospatial"),
         )
 
     def _classify_query(self, message: str) -> dict:
@@ -174,6 +213,7 @@ class AgentSupervisor:
                 "capabilities": f.capabilities[:10],
                 "procedures": f.procedures[:5],
                 "equipment": f.equipment[:5],
+                "description": f.description,
                 "data_completeness": f.data_completeness,
                 "anomalies": f.anomalies,
                 "score": round(score, 3),
@@ -204,6 +244,49 @@ class AgentSupervisor:
             context["stats"]["desert_regions"] = [
                 r for r, s in data_store.region_stats.items() if s.is_medical_desert
             ]
+
+        # Geospatial queries
+        if category == "geospatial":
+            geo = build_geospatial_response(message=message)
+            context["geospatial"] = geo
+            context["stats"]["geospatial_summary"] = {
+                "within_radius_count": len(geo.get("within_radius", [])),
+                "nearest_count": len(geo.get("nearest", [])),
+                "cold_spots_count": len(geo.get("cold_spots", [])),
+            }
+
+            ranked = geo.get("within_radius") or geo.get("nearest") or []
+            if ranked:
+                distance_by_id = {
+                    item.get("unique_id"): item.get("distance_km")
+                    for item in ranked
+                    if item.get("unique_id")
+                }
+                ranked_ids = set(distance_by_id.keys())
+                ranked_facilities = []
+                for f in data_store.facilities:
+                    if f.unique_id not in ranked_ids:
+                        continue
+                    ranked_facilities.append({
+                        "name": f.name,
+                        "unique_id": f.unique_id,
+                        "type": f.facility_type,
+                        "city": f.address_city,
+                        "region": f.normalized_region,
+                        "specialties": f.specialties[:10],
+                        "capabilities": f.capabilities[:10],
+                        "procedures": f.procedures[:5],
+                        "equipment": f.equipment[:5],
+                        "description": f.description,
+                        "data_completeness": f.data_completeness,
+                        "anomalies": f.anomalies,
+                        "score": 1.0,
+                        "distance_km": distance_by_id.get(f.unique_id),
+                    })
+                ranked_facilities.sort(
+                    key=lambda item: item.get("distance_km") if item.get("distance_km") is not None else 1e9
+                )
+                context["facilities"] = ranked_facilities[:15]
 
         # Add anomaly data
         if category == "anomaly":
@@ -251,11 +334,28 @@ At the end, suggest 2-3 follow-up questions the user might want to ask."""},
             answer = response.choices[0].message.content
 
             # Build sources
-            sources = [
-                {"facility_id": f["unique_id"], "facility_name": f["name"],
-                 "region": f.get("region", ""), "relevance": f.get("score", 0)}
-                for f in context["facilities"][:5]
-            ]
+            sources = []
+            for f in context["facilities"][:5]:
+                evidence = []
+                if f.get("description"):
+                    evidence.append({"field": "description", "text": f["description"]})
+                for cap in (f.get("capabilities") or [])[:2]:
+                    evidence.append({"field": "capability", "text": cap})
+                for proc in (f.get("procedures") or [])[:2]:
+                    evidence.append({"field": "procedure", "text": proc})
+                for eq in (f.get("equipment") or [])[:2]:
+                    evidence.append({"field": "equipment", "text": eq})
+                for spec in (f.get("specialties") or [])[:1]:
+                    evidence.append({"field": "specialty", "text": spec})
+
+                sources.append({
+                    "facility_id": f["unique_id"],
+                    "facility_name": f["name"],
+                    "region": f.get("region", ""),
+                    "relevance": f.get("score", 0),
+                    "row_id": f["unique_id"],
+                    "evidence": evidence,
+                })
 
             # Determine visualization hint
             category = classification.get("category", "basic")

@@ -139,6 +139,7 @@ export interface ChatResponse {
   agent_trace: AgentStep[];
   visualization_hint?: string;
   conversation_id: string;
+  geospatial?: Record<string, unknown>;
 }
 
 /* ── IDP ──────────────────────────────────────────────────────────────────── */

@@ -12,7 +12,7 @@ import { facilitiesApi } from "@/api/facilities";
 import GhanaMap from "@/components/GhanaMap";
 import { analysisApi } from "@/api/analysis";
 import { REGION_CENTROIDS } from "@/data/regionCentroids";
-import type { DesertZone } from "@/types/facility";
+import type { DesertZone, RegionPolygon } from "@/types/facility";
 
 const REGIONS = [
     "Greater Accra", "Ashanti", "Western", "Eastern", "Central", "Northern",
@@ -115,6 +115,47 @@ export default function FacilityExplorer() {
             .filter(Boolean) as DesertZone[];
     }, [regionStats]);
 
+    const regionPolygons: RegionPolygon[] = useMemo(() => {
+        if (!regionStats || !mapData) return [];
+        const byRegion: Record<string, { lats: number[]; lngs: number[] }> = {};
+        (mapData || []).forEach((f: any) => {
+            if (!f.region || f.lat == null || f.lng == null) return;
+            if (!byRegion[f.region]) byRegion[f.region] = { lats: [], lngs: [] };
+            byRegion[f.region].lats.push(f.lat);
+            byRegion[f.region].lngs.push(f.lng);
+        });
+        return Object.entries(regionStats).map(([region, stats]: any) => {
+            const bounds = byRegion[region];
+            let minLat = 0, maxLat = 0, minLng = 0, maxLng = 0;
+            if (bounds && bounds.lats.length > 1) {
+                minLat = Math.min(...bounds.lats);
+                maxLat = Math.max(...bounds.lats);
+                minLng = Math.min(...bounds.lngs);
+                maxLng = Math.max(...bounds.lngs);
+            } else {
+                const centroid = REGION_CENTROIDS[region] || [7.9, -1.0];
+                minLat = centroid[0] - 0.4;
+                maxLat = centroid[0] + 0.4;
+                minLng = centroid[1] - 0.5;
+                maxLng = centroid[1] + 0.5;
+            }
+            const padLat = 0.15;
+            const padLng = 0.15;
+            const coords: [number, number][] = [
+                [minLat - padLat, minLng - padLng],
+                [minLat - padLat, maxLng + padLng],
+                [maxLat + padLat, maxLng + padLng],
+                [maxLat + padLat, minLng - padLng],
+            ];
+            const severity = stats.isMedicalDesert
+                ? stats.totalFacilities === 0
+                    ? "critical"
+                    : "high"
+                : "normal";
+            return { region, coords, severity };
+        });
+    }, [regionStats, mapData]);
+
     return (
         <div className="min-h-screen bg-slate-50">
             <div className="px-6 py-4">
@@ -214,7 +255,17 @@ export default function FacilityExplorer() {
                                     placeholder="Show clinics in Ghana with MRI but no verified backup power"
                                     className="flex-1 bg-transparent text-sm outline-none"
                                 />
-                                <button className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium">
+                                <button
+                                    onClick={() => {
+                                        if (searchQuery.trim().length > 2) {
+                                            // Force refetch by toggling search
+                                            const q = searchQuery;
+                                            setSearchQuery("");
+                                            setTimeout(() => setSearchQuery(q), 0);
+                                        }
+                                    }}
+                                    className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+                                >
                                     Search
                                 </button>
                             </div>
@@ -327,11 +378,23 @@ export default function FacilityExplorer() {
                                             )}
 
                                             <div className="mt-3 flex items-center gap-2 pl-2">
-                                                <button className="text-xs px-3 py-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedFacility(f.uniqueId);
+                                                    }}
+                                                    className="text-xs px-3 py-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                                >
                                                     View Details
                                                 </button>
-                                                <button className="text-xs px-3 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">
-                                                    Log Interaction
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        window.open(`/idp?facility=${f.uniqueId}`, "_self");
+                                                    }}
+                                                    className="text-xs px-3 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                                >
+                                                    Run IDP Extraction
                                                 </button>
                                             </div>
                                         </div>
@@ -367,6 +430,7 @@ export default function FacilityExplorer() {
                                 <GhanaMap
                                     facilities={mapData || []}
                                     desertZones={desertZones}
+                                    regionPolygons={regionPolygons}
                                     onFacilityClick={setSelectedFacility}
                                     height="100%"
                                 />
@@ -374,6 +438,7 @@ export default function FacilityExplorer() {
                                     <p className="text-xs font-semibold text-gray-700 mb-2">MAP LEGEND</p>
                                     <div className="space-y-1">
                                         {[
+                                            { color: "#60a5fa", label: "Coverage Zone" },
                                             { color: "#22c55e", label: "Verified Facility" },
                                             { color: "#f59e0b", label: "Anomaly/Suspicious" },
                                             { color: "#94a3b8", label: "Unverified" },
@@ -391,7 +456,7 @@ export default function FacilityExplorer() {
                                 </div>
 
                                 {facilityDetail && (
-                                    <div className="absolute top-4 right-4 w-[320px] rounded-md border border-slate-200 bg-white shadow-xl z-[600] overflow-hidden">
+                                    <div className="absolute top-4 right-4 w-[320px] max-h-[calc(100%-2rem)] rounded-md border border-slate-200 bg-white shadow-xl z-[600] overflow-hidden flex flex-col">
                                         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                                             <h3 className="font-semibold text-gray-900">Facility Detail</h3>
                                             <button
@@ -401,7 +466,7 @@ export default function FacilityExplorer() {
                                                 <X className="w-4 h-4" />
                                             </button>
                                         </div>
-                                        <div className="p-4 space-y-4">
+                                        <div className="p-4 space-y-4 overflow-y-auto flex-1 min-h-0">
                                             <div>
                                                 <h4 className="font-bold text-gray-900">{facilityDetail.name}</h4>
                                                 <p className="text-sm text-gray-500 capitalize">{facilityDetail.facilityType}</p>
@@ -434,6 +499,49 @@ export default function FacilityExplorer() {
                                                             </li>
                                                         ))}
                                                     </ul>
+                                                </div>
+                                            )}
+
+                                            {(facilityDetail.procedures?.length > 0 ||
+                                                facilityDetail.equipment?.length > 0) && (
+                                                <div>
+                                                    <p className="text-xs font-medium text-gray-500 mb-1">Row Evidence</p>
+                                                    <div className="space-y-2">
+                                                        {facilityDetail.procedures?.length > 0 && (
+                                                            <div className="text-xs text-gray-600">
+                                                                <span className="text-[10px] uppercase text-slate-400">
+                                                                    Procedures
+                                                                </span>
+                                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                                    {facilityDetail.procedures.slice(0, 4).map((p: string) => (
+                                                                        <span
+                                                                            key={p}
+                                                                            className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md"
+                                                                        >
+                                                                            {p}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {facilityDetail.equipment?.length > 0 && (
+                                                            <div className="text-xs text-gray-600">
+                                                                <span className="text-[10px] uppercase text-slate-400">
+                                                                    Equipment
+                                                                </span>
+                                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                                    {facilityDetail.equipment.slice(0, 4).map((e: string) => (
+                                                                        <span
+                                                                            key={e}
+                                                                            className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md"
+                                                                        >
+                                                                            {e}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
 

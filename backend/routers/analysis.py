@@ -71,7 +71,33 @@ def get_anomalies():
 def get_data_quality():
     """Get data quality statistics."""
     if data_store.data_quality:
-        return data_store.data_quality.model_dump()
+        result = data_store.data_quality.model_dump()
+        # Add normalization log from region map
+        region_map = getattr(data_store, "_region_map", {})
+        normalization_examples = []
+        seen_afters = set()
+        for raw, normalized in region_map.items():
+            if raw.lower() != normalized.lower() and normalized not in seen_afters:
+                normalization_examples.append({
+                    "before": raw,
+                    "after": normalized,
+                    "status": "fixed",
+                })
+                seen_afters.add(normalized)
+            elif raw.lower() != normalized.lower():
+                normalization_examples.append({
+                    "before": raw,
+                    "after": normalized,
+                    "status": "fixed",
+                })
+        # Add city-inferred enrichment
+        normalization_examples.append({
+            "before": "(empty)",
+            "after": "Inferred from city",
+            "status": "enriched",
+        })
+        result["normalization_log"] = normalization_examples
+        return result
     return {"error": "Data not loaded yet"}
 
 

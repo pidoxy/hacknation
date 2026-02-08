@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, CircleMarker, Circle, Popup, useMap } from "react-leaflet";
-import type { DesertZone, FacilityMapData } from "@/types/facility";
+import { MapContainer, TileLayer, CircleMarker, Circle, Polygon, Popup, useMap } from "react-leaflet";
+import type { DesertZone, FacilityMapData, RegionPolygon } from "@/types/facility";
 import "leaflet/dist/leaflet.css";
 
 interface GhanaMapProps {
@@ -10,6 +10,7 @@ interface GhanaMapProps {
     height?: string;
     className?: string;
     desertZones?: DesertZone[];
+    regionPolygons?: RegionPolygon[];
 }
 
 const typeColors: Record<string, string> = {
@@ -36,6 +37,7 @@ export default function GhanaMap({
     height = "100%",
     className = "",
     desertZones = [],
+    regionPolygons = [],
 }: GhanaMapProps) {
     const center: [number, number] = [7.9465, -1.0232];
     const zoom = 7;
@@ -53,6 +55,38 @@ export default function GhanaMap({
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <MapController center={center} zoom={zoom} />
+
+                {regionPolygons.map((poly) => (
+                    <Polygon
+                        key={`poly-${poly.region}`}
+                        positions={poly.coords}
+                        pathOptions={{
+                            color:
+                                poly.severity === "critical"
+                                    ? "#ef4444"
+                                    : poly.severity === "high"
+                                    ? "#f59e0b"
+                                    : "#60a5fa",
+                            fillColor:
+                                poly.severity === "critical"
+                                    ? "#fecaca"
+                                    : poly.severity === "high"
+                                    ? "#fde68a"
+                                    : "#bfdbfe",
+                            fillOpacity: 0.12,
+                            weight: 1,
+                        }}
+                    >
+                        <Popup>
+                            <div className="text-sm">
+                                <p className="font-semibold">{poly.region}</p>
+                                {poly.severity && (
+                                    <p className="text-xs text-gray-500">Coverage: {poly.severity}</p>
+                                )}
+                            </div>
+                        </Popup>
+                    </Polygon>
+                ))}
 
                 {desertZones.map((zone) => (
                     <Circle

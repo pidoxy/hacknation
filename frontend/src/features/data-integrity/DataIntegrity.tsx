@@ -172,7 +172,7 @@ export default function DataIntegrity() {
                         Region Name Normalization
                     </h3>
                     <p className="text-xs text-gray-500 mb-3">
-                        Agent automatically resolved {quality.regionVariantsFixed || "multiple"} variant
+                        Agent automatically resolved {quality.regionVariantsFixed || quality.normalizationLog?.length || "multiple"} variant
                         region names into Ghana's 16 official regions
                     </p>
                     <div className="overflow-x-auto">
@@ -186,16 +186,7 @@ export default function DataIntegrity() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {[
-                                    { before: "ASHANTI", after: "Ashanti", status: "fixed" },
-                                    { before: "Ashanti Region", after: "Ashanti", status: "fixed" },
-                                    { before: "ashanti", after: "Ashanti", status: "fixed" },
-                                    { before: "Greater Accra Region", after: "Greater Accra", status: "fixed" },
-                                    { before: "greater accra", after: "Greater Accra", status: "fixed" },
-                                    { before: "brong ahafo", after: "Bono", status: "fixed" },
-                                    { before: "Brong-Ahafo", after: "Bono", status: "fixed" },
-                                    { before: "(empty)", after: "Inferred from city", status: "enriched" },
-                                ].map((row, i) => (
+                                {(quality.normalizationLog || []).map((row: any, i: number) => (
                                     <tr key={i} className="border-b border-gray-50">
                                         <td className="py-2">
                                             <code className="text-xs bg-red-50 text-red-700 px-1.5 py-0.5 rounded">

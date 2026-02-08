@@ -75,6 +75,13 @@ export interface DesertZone {
     gaps?: string[];
 }
 
+export interface RegionPolygon {
+    region: string;
+    coords: [number, number][];
+    severity?: "critical" | "high" | "normal";
+    value?: number;
+}
+
 export interface DataQualityStats {
     totalFacilities: number;
     uniqueFacilities: number;

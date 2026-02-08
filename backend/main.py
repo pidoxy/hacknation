@@ -78,12 +78,16 @@ from routers.chat import router as chat_router
 from routers.analysis import router as analysis_router
 from routers.idp import router as idp_router
 from routers.voice import router as voice_router
+from routers.plans import router as plans_router
+from routers.geospatial import router as geospatial_router
 
 app.include_router(facilities_router, prefix="/api/facilities", tags=["Facilities"])
 app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
 app.include_router(analysis_router, prefix="/api/analysis", tags=["Analysis"])
 app.include_router(idp_router, prefix="/api/idp", tags=["IDP"])
 app.include_router(voice_router, prefix="/api/voice", tags=["Voice"])
+app.include_router(plans_router, prefix="/api", tags=["Plans"])
+app.include_router(geospatial_router, prefix="/api", tags=["Geospatial"])
 
 
 @app.get("/")

@@ -8,6 +8,7 @@ import {
     FileText,
     Code2,
     Eye,
+    Download,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { idpApi } from "@/api/idp";
@@ -15,12 +16,22 @@ import { idpApi } from "@/api/idp";
 export default function IDPAgentView() {
     const [selectedFacilityId, setSelectedFacilityId] = useState<string>();
     const [activeTab, setActiveTab] = useState<"extracted" | "trace" | "schema">("extracted");
+    const [showSchema, setShowSchema] = useState(false);
 
     // Get demo facilities
     const { data: demoFacilities } = useQuery({
         queryKey: ["demoFacilities"],
         queryFn: async () => {
             const res = await idpApi.demoFacilities();
+            return res.data;
+        },
+    });
+
+    // Get schema
+    const { data: schemaData } = useQuery({
+        queryKey: ["idpSchema"],
+        queryFn: async () => {
+            const res = await idpApi.schema();
             return res.data;
         },
     });
@@ -40,6 +51,17 @@ export default function IDPAgentView() {
 
     const result = extractMutation.data;
 
+    const handleExportJSON = () => {
+        const exportData = result || { schema: schemaData, message: "No extraction performed yet" };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `idp-extraction-${selectedFacilityId || "schema"}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="min-h-screen bg-slate-50">
             {/* Header */}
@@ -56,10 +78,18 @@ export default function IDPAgentView() {
                             </p>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button className="px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">
-                                View Schema
+                            <button
+                                onClick={() => setShowSchema(!showSchema)}
+                                className={`px-3 py-2 text-sm border rounded-lg hover:bg-slate-50 ${showSchema ? "border-blue-300 bg-blue-50 text-blue-700" : "border-slate-200"}`}
+                            >
+                                <Code2 className="w-3.5 h-3.5 inline mr-1" />
+                                {showSchema ? "Hide Schema" : "View Schema"}
                             </button>
-                            <button className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            <button
+                                onClick={handleExportJSON}
+                                className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1"
+                            >
+                                <Download className="w-3.5 h-3.5" />
                                 Export JSON
                             </button>
                         </div>
@@ -95,6 +125,18 @@ export default function IDPAgentView() {
                     </div>
                 </div>
             </div>
+
+            {showSchema && schemaData && (
+                <div className="px-6 pb-2">
+                    <div className="bg-gray-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-64">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-gray-400 text-[10px] uppercase">Facility Pydantic Schema</span>
+                            <button onClick={() => setShowSchema(false)} className="text-gray-500 hover:text-white text-xs">Close</button>
+                        </div>
+                        <pre>{JSON.stringify(schemaData, null, 2)}</pre>
+                    </div>
+                </div>
+            )}
 
             {!result && !extractMutation.isPending && (
                 <div className="flex-1 flex items-center justify-center text-slate-400">
@@ -264,6 +306,36 @@ export default function IDPAgentView() {
                                         </div>
                                     )}
 
+                                    {/* Evidence from source text */}
+                                    {(result.extracted?.extractedEquipment?.length > 0 ||
+                                        result.extracted?.extractedProcedures?.length > 0) && (
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-gray-800 mb-2">
+                                                Source Evidence
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {result.extracted.extractedEquipment?.slice(0, 4).map((item: any, i: number) => (
+                                                    <div key={`eq-${i}`} className="text-xs border rounded-md p-2 bg-white">
+                                                        <span className="text-[10px] uppercase text-slate-400">Equipment</span>
+                                                        <div className="font-medium text-slate-700">{item.name}</div>
+                                                        {item.sourceText && (
+                                                            <div className="text-slate-500 mt-1">{item.sourceText}</div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                {result.extracted.extractedProcedures?.slice(0, 4).map((item: any, i: number) => (
+                                                    <div key={`proc-${i}`} className="text-xs border rounded-md p-2 bg-white">
+                                                        <span className="text-[10px] uppercase text-slate-400">Procedure</span>
+                                                        <div className="font-medium text-slate-700">{item.name}</div>
+                                                        {item.sourceText && (
+                                                            <div className="text-slate-500 mt-1">{item.sourceText}</div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Anomalies */}
                                     {result.extracted?.anomaliesDetected?.length > 0 && (
                                         <div>
@@ -312,6 +384,18 @@ export default function IDPAgentView() {
                                                     {step.dataSources.map((src: string) => (
                                                         <span key={src} className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
                                                             {src}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {step.citations?.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    {step.citations.slice(0, 6).map((c: any, idx: number) => (
+                                                        <span
+                                                            key={`${c.type}-${c.id || c.label}-${idx}`}
+                                                            className="text-[10px] bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md"
+                                                        >
+                                                            {c.label || c.id || c.type}
                                                         </span>
                                                     ))}
                                                 </div>

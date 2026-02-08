@@ -17,8 +17,8 @@ import { analysisApi } from "@/api/analysis";
 import GhanaMap from "@/components/GhanaMap";
 import { stripEmoji } from "@/lib/utils";
 import { REGION_CENTROIDS } from "@/data/regionCentroids";
-import type { ChatMessage } from "@/types/chat";
-import type { DesertZone } from "@/types/facility";
+import type { ChatMessage, GeospatialResult } from "@/types/chat";
+import type { DesertZone, RegionPolygon } from "@/types/facility";
 
 export default function CommandCenter() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -26,7 +26,9 @@ export default function CommandCenter() {
     const [conversationId, setConversationId] = useState<string>();
     const [isListening, setIsListening] = useState(false);
     const [autoSpeak, setAutoSpeak] = useState(false);
+    const [isSpeaking, setIsSpeaking] = useState(false);
     const [expandedTrace, setExpandedTrace] = useState<string | null>(null);
+    const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "", []);
@@ -82,6 +84,7 @@ export default function CommandCenter() {
                 sources: data.sources,
                 agentTrace: data.agentTrace,
                 visualizationHint: data.visualizationHint,
+                geospatial: data.geospatial,
                 timestamp: new Date(),
             };
             setMessages((prev) => [...prev, assistantMsg]);
@@ -156,8 +159,26 @@ export default function CommandCenter() {
         }
     };
 
+    const stopSpeaking = () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            audioRef.current = null;
+        }
+        if ("speechSynthesis" in window) {
+            window.speechSynthesis.cancel();
+        }
+        setIsSpeaking(false);
+    };
+
     const speakResponse = async (text: string) => {
+        // If already speaking, stop
+        if (isSpeaking) {
+            stopSpeaking();
+            return;
+        }
         const cleanText = text.substring(0, 500);
+        setIsSpeaking(true);
         try {
             const res = await fetch(`${apiBase}/api/voice/tts`, {
                 method: "POST",
@@ -172,15 +193,20 @@ export default function CommandCenter() {
             }
             const audio = new Audio(audioUrl);
             audioRef.current = audio;
+            audio.onended = () => setIsSpeaking(false);
+            audio.onerror = () => setIsSpeaking(false);
             await audio.play();
         } catch {
             if ("speechSynthesis" in window) {
                 const utterance = new SpeechSynthesisUtterance(cleanText);
                 utterance.rate = 1;
+                utterance.onend = () => setIsSpeaking(false);
+                utterance.onerror = () => setIsSpeaking(false);
                 window.speechSynthesis.cancel();
                 window.speechSynthesis.speak(utterance);
                 return;
             }
+            setIsSpeaking(false);
             console.error("TTS failed");
         }
     };
@@ -195,6 +221,26 @@ export default function CommandCenter() {
               .map(([region, data]: [string, any]) => ({ region, ...data }))
               .sort((a: any, b: any) => b.totalFacilities - a.totalFacilities)
         : [];
+
+    useEffect(() => {
+        if (!selectedRegion && sortedRegions.length > 0) {
+            setSelectedRegion(sortedRegions[0].region);
+        }
+    }, [selectedRegion, sortedRegions]);
+
+    const selectedStats = selectedRegion ? regionStats?.[selectedRegion] : null;
+    const coverageKeys = selectedStats?.capabilitiesCoverage
+        ? Object.keys(selectedStats.capabilitiesCoverage)
+        : [];
+    const coveredCount = coverageKeys.filter(
+        (k) => (selectedStats?.capabilitiesCoverage?.[k] || 0) > 0
+    ).length;
+    const coveragePercent = coverageKeys.length
+        ? Math.round((coveredCount / coverageKeys.length) * 100)
+        : 0;
+    const anomalyRate = selectedStats?.totalFacilities
+        ? Math.round((selectedStats.anomalyCount / selectedStats.totalFacilities) * 100)
+        : 0;
 
     const desertZones: DesertZone[] = useMemo(() => {
         if (!regionStats) return [];
@@ -217,6 +263,47 @@ export default function CommandCenter() {
             .filter(Boolean) as DesertZone[];
     }, [regionStats]);
 
+    const regionPolygons: RegionPolygon[] = useMemo(() => {
+        if (!regionStats || !mapData) return [];
+        const byRegion: Record<string, { lats: number[]; lngs: number[] }> = {};
+        mapData.forEach((f: any) => {
+            if (!f.region || f.lat == null || f.lng == null) return;
+            if (!byRegion[f.region]) byRegion[f.region] = { lats: [], lngs: [] };
+            byRegion[f.region].lats.push(f.lat);
+            byRegion[f.region].lngs.push(f.lng);
+        });
+        return Object.entries(regionStats).map(([region, stats]: any) => {
+            const bounds = byRegion[region];
+            let minLat = 0, maxLat = 0, minLng = 0, maxLng = 0;
+            if (bounds && bounds.lats.length > 1) {
+                minLat = Math.min(...bounds.lats);
+                maxLat = Math.max(...bounds.lats);
+                minLng = Math.min(...bounds.lngs);
+                maxLng = Math.max(...bounds.lngs);
+            } else {
+                const centroid = REGION_CENTROIDS[region] || [7.9, -1.0];
+                minLat = centroid[0] - 0.4;
+                maxLat = centroid[0] + 0.4;
+                minLng = centroid[1] - 0.5;
+                maxLng = centroid[1] + 0.5;
+            }
+            const padLat = 0.15;
+            const padLng = 0.15;
+            const coords: [number, number][] = [
+                [minLat - padLat, minLng - padLng],
+                [minLat - padLat, maxLng + padLng],
+                [maxLat + padLat, maxLng + padLng],
+                [maxLat + padLat, minLng - padLng],
+            ];
+            const severity = stats.isMedicalDesert
+                ? stats.totalFacilities === 0
+                    ? "critical"
+                    : "high"
+                : "normal";
+            return { region, coords, severity };
+        });
+    }, [regionStats, mapData]);
+
     const renderInline = (text: string) => {
         const parts = text.split(/\*\*(.+?)\*\*/g);
         return parts.map((part, i) =>
@@ -237,6 +324,7 @@ export default function CommandCenter() {
             | { type: "p"; lines: string[] }
             | { type: "ol"; items: string[] }
             | { type: "ul"; items: string[] }
+            | { type: "h"; text: string; level: number }
         > = [];
         let current: typeof blocks[number] | null = null;
 
@@ -251,8 +339,15 @@ export default function CommandCenter() {
                 flush();
                 continue;
             }
+            const headingMatch = line.match(/^\s*(#{1,3})\s+(.*)$/);
             const olMatch = line.match(/^\s*\d+\.\s+(.*)$/);
             const ulMatch = line.match(/^\s*[-*]\s+(.*)$/);
+            const bulletMatch = line.match(/^\s*[•·–—]\s+(.*)$/);
+            if (headingMatch) {
+                flush();
+                blocks.push({ type: "h", text: headingMatch[2], level: headingMatch[1].length });
+                continue;
+            }
             if (olMatch) {
                 if (!current || current.type !== "ol") {
                     flush();
@@ -261,12 +356,13 @@ export default function CommandCenter() {
                 (current as { type: "ol"; items: string[] }).items.push(olMatch[1]);
                 continue;
             }
-            if (ulMatch) {
+            if (ulMatch || bulletMatch) {
                 if (!current || current.type !== "ul") {
                     flush();
                     current = { type: "ul", items: [] };
                 }
-                (current as { type: "ul"; items: string[] }).items.push(ulMatch[1]);
+                const item = (ulMatch ? ulMatch[1] : bulletMatch?.[1]) || "";
+                (current as { type: "ul"; items: string[] }).items.push(item);
                 continue;
             }
             if (!current || current.type !== "p") {
@@ -280,15 +376,24 @@ export default function CommandCenter() {
         return (
             <div className="space-y-2">
                 {blocks.map((block, i) => {
-                    if (block.type === "ol") {
-                        return (
-                            <ol key={`ol-${i}`} className="list-decimal ml-5 space-y-1">
-                                {block.items.map((item, idx) => (
-                                    <li key={idx} className="text-sm text-slate-800">
-                                        {renderInline(item)}
-                                    </li>
-                                ))}
-                            </ol>
+                if (block.type === "h") {
+                    const size =
+                        block.level === 1 ? "text-sm font-semibold" : "text-xs font-semibold";
+                    return (
+                        <div key={`h-${i}`} className={`${size} text-slate-800`}>
+                            {renderInline(block.text)}
+                        </div>
+                    );
+                }
+                if (block.type === "ol") {
+                    return (
+                        <ol key={`ol-${i}`} className="list-decimal ml-5 space-y-1">
+                            {block.items.map((item, idx) => (
+                                <li key={idx} className="text-sm text-slate-800">
+                                    {renderInline(item)}
+                                </li>
+                            ))}
+                        </ol>
                         );
                     }
                     if (block.type === "ul") {
@@ -317,6 +422,79 @@ export default function CommandCenter() {
         );
     };
 
+    const renderGeospatialPanel = (geo: GeospatialResult) => {
+        const coords = geo.location?.coords;
+        const coordsLabel = coords
+            ? `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`
+            : "Location unavailable";
+        const within = geo.withinRadius || [];
+        const nearest = geo.nearest || [];
+        const primaryList = within.length > 0 ? within : nearest;
+        const listLabel =
+            within.length > 0
+                ? `Within ${geo.radiusKm ? Math.round(geo.radiusKm) : ""} km`
+                : "Nearest facilities";
+
+        return (
+            <div className="bg-white border border-slate-200 rounded-md p-3 text-sm">
+                <div className="flex items-center justify-between text-[11px] uppercase text-slate-400">
+                    <span>Distance Results</span>
+                    <span className="text-slate-500">{listLabel}</span>
+                </div>
+                <div className="mt-1 text-xs text-slate-600">
+                    <span className="font-medium text-slate-700">
+                        {geo.location?.label || "Custom Location"}
+                    </span>
+                    <span className="text-slate-400"> · {coordsLabel}</span>
+                </div>
+                {primaryList.length > 0 ? (
+                    <div className="mt-2 space-y-1">
+                        {primaryList.slice(0, 8).map((item, idx) => (
+                            <div
+                                key={`${item.uniqueId || item.name}-${idx}`}
+                                className="flex items-center justify-between text-xs text-slate-700"
+                            >
+                                <div className="truncate">
+                                    <span className="font-medium">{item.name}</span>
+                                    <span className="text-slate-400">
+                                        {" "}
+                                        · {item.region || "Unknown"}
+                                    </span>
+                                </div>
+                                <span className="text-slate-500">
+                                    {item.distanceKm != null
+                                        ? `${item.distanceKm.toFixed(1)} km`
+                                        : "—"}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="mt-2 text-xs text-slate-500">
+                        No facilities found for this location.
+                    </div>
+                )}
+                {geo.coldSpots && geo.coldSpots.length > 0 && (
+                    <div className="mt-2 border-t border-slate-200 pt-2">
+                        <div className="text-[11px] uppercase text-slate-400">
+                            Coverage Gaps
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                            {geo.coldSpots.slice(0, 4).map((spot) => (
+                                <span
+                                    key={spot.region}
+                                    className="text-[11px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md"
+                                >
+                                    {spot.region}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="h-screen bg-slate-50 overflow-hidden">
             <div className="px-2 py-2 h-full">
@@ -332,9 +510,11 @@ export default function CommandCenter() {
                                     </h2>
                                     <p className="text-xs text-slate-500">Regional Operations Overview</p>
                                 </div>
-                                <span className="flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                                    ONLINE
+                                <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                                    stats ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50"
+                                }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${stats ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`}></span>
+                                    {stats ? "ONLINE" : "CONNECTING"}
                                 </span>
                             </div>
                         </div>
@@ -384,15 +564,48 @@ export default function CommandCenter() {
 
                                     {/* Sources */}
                                     {msg.sources && msg.sources.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 px-1">
-                                            {msg.sources.slice(0, 3).map((src, i) => (
-                                                <span
-                                                    key={i}
-                                                    className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded"
+                                        <div className="space-y-2 px-1">
+                                            <div className="flex flex-wrap gap-1">
+                                                {msg.sources.slice(0, 3).map((src, i) => (
+                                                    <span
+                                                        key={i}
+                                                        className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md"
+                                                    >
+                                                        {src.facilityName}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            {msg.sources.slice(0, 2).map((src, i) => (
+                                                <div
+                                                    key={`evidence-${i}`}
+                                                    className="text-[11px] text-slate-600 bg-white border border-slate-200 rounded-md p-2"
                                                 >
-                                                    {src.facilityName}
-                                                </span>
+                                                    <div className="font-semibold text-slate-700">
+                                                        {src.facilityName}
+                                                    </div>
+                                                    {src.evidence && src.evidence.length > 0 && (
+                                                        <div className="mt-1 space-y-1">
+                                                            {src.evidence.slice(0, 3).map((e, idx) => (
+                                                                <div key={idx}>
+                                                                    <span className="text-slate-400 uppercase text-[10px]">
+                                                                        {e.field}
+                                                                    </span>
+                                                                    : {stripEmoji(e.text)}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <div className="mt-1 text-[10px] text-slate-400">
+                                                        Row ID: {src.rowId || src.facilityId}
+                                                    </div>
+                                                </div>
                                             ))}
+                                        </div>
+                                    )}
+
+                                    {msg.geospatial && (
+                                        <div className="px-1">
+                                            {renderGeospatialPanel(msg.geospatial)}
                                         </div>
                                     )}
 
@@ -434,6 +647,19 @@ export default function CommandCenter() {
                                                                         ({step.durationMs}ms)
                                                                     </span>
                                                                 )}
+                                                                {step.citations && step.citations.length > 0 && (
+                                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                                        {step.citations.slice(0, 6).map((c, idx) => (
+                                                                            <span
+                                                                                key={`${c.type}-${c.id || c.label}-${idx}`}
+                                                                                className="text-[10px] bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md"
+                                                                                title={c.region || c.type}
+                                                                            >
+                                                                                {c.label || c.id || c.type}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}
@@ -445,10 +671,12 @@ export default function CommandCenter() {
                                     {/* TTS button */}
                                     <button
                                         onClick={() => speakResponse(msg.content)}
-                                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-1"
+                                        className={`flex items-center gap-1 text-xs px-1 ${
+                                            isSpeaking ? "text-red-500 hover:text-red-700" : "text-gray-400 hover:text-blue-600"
+                                        }`}
                                     >
-                                        <Volume2 className="w-3 h-3" />
-                                        Listen
+                                        {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                                        {isSpeaking ? "Stop" : "Listen"}
                                     </button>
                                 </div>
                             )}
@@ -520,6 +748,7 @@ export default function CommandCenter() {
                         <GhanaMap
                             facilities={mapData || []}
                             desertZones={desertZones}
+                            regionPolygons={regionPolygons}
                             height="100%"
                         />
                         {/* Map Legend */}
@@ -527,6 +756,7 @@ export default function CommandCenter() {
                             <p className="text-xs font-semibold text-gray-700 mb-2">MAP LEGEND</p>
                             <div className="space-y-1">
                                 {[
+                                    { color: "#60a5fa", label: "Coverage Zone" },
                                     { color: "#2563eb", label: "Hospital" },
                                     { color: "#22c55e", label: "Clinic" },
                                     { color: "#f59e0b", label: "Dentist" },
@@ -549,7 +779,94 @@ export default function CommandCenter() {
                     <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-y-auto h-full min-h-0">
                         <div className="p-4 border-b border-slate-200">
                             <h3 className="font-semibold text-gray-900">Regional Health Overview</h3>
-                            <p className="text-xs text-gray-500 mt-0.5">Data updated: live</p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                                Dataset: {stats?.total || "..."} facilities loaded
+                            </p>
+                        </div>
+
+                        {/* Regional Synthesis */}
+                        <div className="p-4 border-b border-slate-200">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold text-slate-700">
+                                        Regional Capability Synthesis
+                                    </p>
+                                    <p className="text-[11px] text-slate-400">
+                                        Structured + extracted fields
+                                    </p>
+                                </div>
+                                <select
+                                    value={selectedRegion || ""}
+                                    onChange={(e) => setSelectedRegion(e.target.value)}
+                                    className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white"
+                                >
+                                    {sortedRegions.map((r: any) => (
+                                        <option key={r.region} value={r.region}>
+                                            {r.region}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {selectedStats && (
+                                <>
+                                    <div className="grid grid-cols-2 gap-2 mt-3">
+                                        <div className="rounded-md bg-slate-50 p-2">
+                                            <p className="text-[11px] uppercase text-slate-400">Coverage</p>
+                                            <p className="text-lg font-semibold text-slate-900">
+                                                {coveragePercent}%
+                                            </p>
+                                        </div>
+                                        <div className="rounded-md bg-slate-50 p-2">
+                                            <p className="text-[11px] uppercase text-slate-400">Data Complete</p>
+                                            <p className="text-lg font-semibold text-slate-900">
+                                                {Math.round(selectedStats.avgDataCompleteness)}%
+                                            </p>
+                                        </div>
+                                        <div className="rounded-md bg-slate-50 p-2">
+                                            <p className="text-[11px] uppercase text-slate-400">Anomaly Rate</p>
+                                            <p className="text-lg font-semibold text-slate-900">
+                                                {anomalyRate}%
+                                            </p>
+                                        </div>
+                                        <div className="rounded-md bg-slate-50 p-2">
+                                            <p className="text-[11px] uppercase text-slate-400">Facilities</p>
+                                            <p className="text-lg font-semibold text-slate-900">
+                                                {selectedStats.totalFacilities}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {selectedStats.desertGaps?.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-[11px] uppercase text-slate-400">Key Gaps</p>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {selectedStats.desertGaps.slice(0, 4).map((g: string) => (
+                                                    <span
+                                                        key={g}
+                                                        className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded-md"
+                                                    >
+                                                        {g}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {selectedStats.specialtiesAvailable?.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-[11px] uppercase text-slate-400">Top Specialties</p>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {selectedStats.specialtiesAvailable.slice(0, 6).map((s: string) => (
+                                                    <span
+                                                        key={s}
+                                                        className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md"
+                                                    >
+                                                        {s}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
 
                 {/* Critical alert */}
@@ -590,8 +907,11 @@ export default function CommandCenter() {
                             {sortedRegions.map((r: any) => (
                                 <div
                                     key={r.region}
-                                    className={`p-2.5 rounded-md border text-sm ${
-                                        r.isMedicalDesert
+                                    onClick={() => setSelectedRegion(r.region)}
+                                    className={`p-2.5 rounded-md border text-sm cursor-pointer ${
+                                        r.region === selectedRegion
+                                            ? "border-blue-200 bg-blue-50"
+                                            : r.isMedicalDesert
                                             ? "border-red-200 bg-red-50"
                                             : "border-gray-100 bg-gray-50"
                                     }`}
