@@ -15,7 +15,7 @@ import { chatApi } from "@/api/chat";
 import { facilitiesApi } from "@/api/facilities";
 import { analysisApi } from "@/api/analysis";
 import GhanaMap from "@/components/GhanaMap";
-import { stripEmoji } from "@/lib/utils";
+import { formatTtsText, stripEmoji } from "@/lib/utils";
 import { REGION_CENTROIDS } from "@/data/regionCentroids";
 import type { ChatMessage, GeospatialResult } from "@/types/chat";
 import type { DesertZone, RegionPolygon } from "@/types/facility";
@@ -177,7 +177,7 @@ export default function CommandCenter() {
             stopSpeaking();
             return;
         }
-        const cleanText = text.substring(0, 500);
+        const cleanText = formatTtsText(text).substring(0, 500);
         setIsSpeaking(true);
         try {
             const res = await fetch(`${apiBase}/api/voice/tts`, {

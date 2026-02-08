@@ -6,6 +6,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
+    elevenlabs_voice_stability: float = 0.35
+    elevenlabs_voice_similarity_boost: float = 0.85
+    elevenlabs_voice_style: float = 0.4
+    elevenlabs_voice_use_speaker_boost: bool = True
     embedding_model: str = "text-embedding-3-small"
     csv_path: str = "data/ghana_facilities.csv"
     host: str = "0.0.0.0"

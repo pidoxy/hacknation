@@ -18,12 +18,43 @@ async def text_to_speech(request: TTSRequest):
 
         client = ElevenLabs(api_key=settings.elevenlabs_api_key)
 
-        audio_generator = client.text_to_speech.convert(
-            voice_id=settings.elevenlabs_voice_id,
-            text=request.text,
-            model_id="eleven_turbo_v2_5",
-            output_format="mp3_44100_128",
-        )
+        voice_settings = {
+            "stability": settings.elevenlabs_voice_stability,
+            "similarity_boost": settings.elevenlabs_voice_similarity_boost,
+            "style": settings.elevenlabs_voice_style,
+            "use_speaker_boost": settings.elevenlabs_voice_use_speaker_boost,
+        }
+
+        def _convert(model_id: str, use_settings: bool = True):
+            if use_settings:
+                return client.text_to_speech.convert(
+                    voice_id=settings.elevenlabs_voice_id,
+                    text=request.text,
+                    model_id=model_id,
+                    output_format="mp3_44100_128",
+                    voice_settings=voice_settings,
+                )
+            return client.text_to_speech.convert(
+                voice_id=settings.elevenlabs_voice_id,
+                text=request.text,
+                model_id=model_id,
+                output_format="mp3_44100_128",
+            )
+
+        try:
+            try:
+                audio_generator = _convert(settings.elevenlabs_model_id, use_settings=True)
+            except TypeError:
+                audio_generator = _convert(settings.elevenlabs_model_id, use_settings=False)
+        except Exception:
+            fallback_model = "eleven_turbo_v2_5"
+            if settings.elevenlabs_model_id != fallback_model:
+                try:
+                    audio_generator = _convert(fallback_model, use_settings=False)
+                except Exception as e:
+                    return {"error": f"TTS failed: {str(e)}"}
+            else:
+                raise
 
         # Collect audio bytes from generator
         audio_bytes = b""
@@ -76,5 +107,6 @@ def voice_status():
     return {
         "configured": bool(settings.elevenlabs_api_key),
         "voice_id": settings.elevenlabs_voice_id,
+        "model_id": settings.elevenlabs_model_id,
         "note": "English only. Twi/Akan not currently supported by ElevenLabs.",
     }
