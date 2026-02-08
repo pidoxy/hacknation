@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Analytics } from "@vercel/analytics/react";
 import Sidebar from "@/components/Sidebar";
 import CommandCenter from "@/features/command-center/CommandCenter";
 import IDPAgentView from "@/features/idp-agent/IDPAgentView";
@@ -32,6 +33,7 @@ export default function App() {
                         </Routes>
                     </main>
                 </div>
+                <Analytics />
             </BrowserRouter>
         </QueryClientProvider>
     );
