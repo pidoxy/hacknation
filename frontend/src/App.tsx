@@ -20,9 +20,9 @@ export default function App() {
     return (
         <QueryClientProvider client={queryClient}>
             <BrowserRouter>
-                <div className="flex">
+                <div className="min-h-screen bg-slate-50">
                     <Sidebar />
-                    <main className="ml-64 flex-1">
+                    <main className="ml-64 min-h-screen">
                         <Routes>
                             <Route path="/" element={<CommandCenter />} />
                             <Route path="/idp" element={<IDPAgentView />} />

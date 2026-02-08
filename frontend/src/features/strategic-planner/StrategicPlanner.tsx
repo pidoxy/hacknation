@@ -75,32 +75,31 @@ export default function StrategicPlanner() {
     const maternalGap = maternalRegions.filter((m: any) => m.status === "critical" || m.status === "underserved").length;
 
     return (
-        <div className="h-screen overflow-y-auto bg-gray-50">
-            {/* Header */}
-            <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
-                <div>
-                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                        <Target className="w-5 h-5 text-blue-600" />
-                        Strategic Resource Planner
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                            BETA v2.4
-                        </span>
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                        Sub-Saharan Region (Q3 2024) - Gap Analysis & AI Allocation
-                    </p>
+        <div className="min-h-screen bg-slate-50">
+            <div className="px-6 py-4 space-y-4">
+                {/* Header */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                    <div>
+                        <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                            <Target className="w-5 h-5 text-blue-600" />
+                            Strategic Resource Planner
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                BETA v2.4
+                            </span>
+                        </h2>
+                        <p className="text-sm text-slate-500">
+                            Dataset: {stats?.total || 0} Facilities Analyzed · Gap Matrix & Allocation
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50">
+                            Export Dataset
+                        </button>
+                        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                            Simulate Deployment
+                        </button>
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-                        Export Report
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                        Run Simulation
-                    </button>
-                </div>
-            </div>
-
-            <div className="p-4 space-y-4">
                 {/* Stats Cards */}
                 <div className="grid grid-cols-4 gap-4">
                     <StatsCard

@@ -41,71 +41,76 @@ export default function IDPAgentView() {
     const result = extractMutation.data;
 
     return (
-        <div className="h-screen flex flex-col">
+        <div className="min-h-screen bg-slate-50">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                            <Brain className="w-5 h-5 text-blue-600" />
-                            IDP Agent View
-                        </h2>
-                        <p className="text-sm text-gray-500">
-                            Intelligent Document Parsing - Raw Data to Structured Output
-                        </p>
-                    </div>
-                    {result && (
-                        <div className="flex items-center gap-4 text-xs">
-                            <span className="text-gray-400">
-                                Processing Cost: ${result.processingCost?.toFixed(3) || "0.004"}
-                            </span>
-                            <span className="bg-green-50 text-green-700 px-2 py-1 rounded flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" />
-                                Processed
-                            </span>
+            <div className="px-6 py-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                                <Brain className="w-5 h-5 text-blue-600" />
+                                IDP Agents
+                            </h2>
+                            <p className="text-sm text-slate-500">
+                                Structured extraction from raw facility records
+                            </p>
                         </div>
-                    )}
-                </div>
+                        <div className="flex items-center gap-2">
+                            <button className="px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">
+                                View Schema
+                            </button>
+                            <button className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                Export JSON
+                            </button>
+                        </div>
+                    </div>
 
-                {/* Facility Selector */}
-                <div className="mt-3 flex items-center gap-2">
-                    <select
-                        value={selectedFacilityId || ""}
-                        onChange={(e) => e.target.value && handleExtract(e.target.value)}
-                        className="flex-1 max-w-lg text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white"
-                    >
-                        <option value="">Select a facility for IDP extraction...</option>
-                        {demoFacilities?.facilities?.map((f: any) => (
-                            <option key={f.uniqueId} value={f.uniqueId}>
-                                {f.name} ({f.facilityType}) - {f.capabilitiesCount} caps,{" "}
-                                {f.proceduresCount} procs, {f.equipmentCount} equip
-                            </option>
-                        ))}
-                    </select>
-                    {extractMutation.isPending && (
-                        <span className="text-xs text-blue-600 flex items-center gap-1">
-                            <Clock className="w-3 h-3 animate-spin" />
-                            Extracting...
-                        </span>
-                    )}
+                    {/* Facility Selector */}
+                    <div className="mt-3 flex items-center gap-2">
+                        <select
+                            value={selectedFacilityId || ""}
+                            onChange={(e) => e.target.value && handleExtract(e.target.value)}
+                            className="flex-1 max-w-lg text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"
+                        >
+                            <option value="">Select a facility for IDP extraction...</option>
+                            {demoFacilities?.facilities?.map((f: any) => (
+                                <option key={f.uniqueId} value={f.uniqueId}>
+                                    {f.name} ({f.facilityType}) - {f.capabilitiesCount} caps,{" "}
+                                    {f.proceduresCount} procs, {f.equipmentCount} equip
+                                </option>
+                            ))}
+                        </select>
+                        {extractMutation.isPending && (
+                            <span className="text-xs text-blue-600 flex items-center gap-1">
+                                <Clock className="w-3 h-3 animate-spin" />
+                                Extracting...
+                            </span>
+                        )}
+                        {result && (
+                            <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Structured
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {!result && !extractMutation.isPending && (
-                <div className="flex-1 flex items-center justify-center text-gray-400">
+                <div className="flex-1 flex items-center justify-center text-slate-400">
                     <div className="text-center">
                         <Brain className="w-12 h-12 mx-auto mb-3 opacity-30" />
                         <p className="text-sm">Select a facility above to run IDP extraction</p>
-                        <p className="text-xs mt-1">The agent will parse free-form text into structured data</p>
+                        <p className="text-xs mt-1">The system will parse free-form text into structured data</p>
                     </div>
                 </div>
             )}
 
             {result && (
-                <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 flex overflow-hidden px-6 pb-6">
                     {/* Left: Raw Data */}
-                    <div className="w-1/2 border-r border-gray-200 overflow-y-auto bg-gray-50">
-                        <div className="p-3 border-b border-gray-200 bg-white sticky top-0">
+                    <div className="w-1/2 border-r border-slate-200 overflow-y-auto bg-slate-50 rounded-l-2xl">
+                        <div className="p-3 border-b border-slate-200 bg-white sticky top-0 rounded-tl-2xl">
                             <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                                 <FileText className="w-4 h-4" />
                                 Raw CSV Data
@@ -113,7 +118,7 @@ export default function IDPAgentView() {
                             <p className="text-xs text-gray-400">Original facility record</p>
                         </div>
                         <div className="p-4">
-                            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
                                 {Object.entries(result.original || {}).map(([key, value]: [string, any]) => {
                                     const isUnstructured = ["capabilities", "procedures", "equipment", "description"].includes(key);
                                     const isEmpty = !value || (Array.isArray(value) && value.length === 0);

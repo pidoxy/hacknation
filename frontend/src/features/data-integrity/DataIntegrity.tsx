@@ -30,8 +30,10 @@ export default function DataIntegrity() {
 
     if (!quality) {
         return (
-            <div className="h-screen flex items-center justify-center text-gray-400">
-                Loading data quality metrics...
+            <div className="min-h-screen bg-slate-50">
+                <div className="h-screen flex items-center justify-center text-slate-400">
+                    Loading data quality metrics...
+                </div>
             </div>
         );
     }
@@ -47,19 +49,20 @@ export default function DataIntegrity() {
         .sort(([, a]: any, [, b]: any) => b - a);
 
     return (
-        <div className="h-screen overflow-y-auto bg-gray-50">
+        <div className="min-h-screen bg-slate-50">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 p-4">
-                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-blue-600" />
-                    Data Integrity & Agent Impact
-                </h2>
-                <p className="text-sm text-gray-500">
-                    Data quality assessment and IDP agent enrichment metrics
-                </p>
-            </div>
+            <div className="px-6 py-4 space-y-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                    <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                        <ShieldCheck className="w-5 h-5 text-blue-600" />
+                        Data Integrity & Agent Impact
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                        Data quality assessment and enrichment metrics
+                    </p>
+                </div>
 
-            <div className="p-4 space-y-4">
+                <div className="space-y-4">
                 {/* Stats Row */}
                 <div className="grid grid-cols-4 gap-4">
                     <StatsCard
@@ -93,7 +96,7 @@ export default function DataIntegrity() {
 
                 <div className="grid grid-cols-2 gap-4">
                     {/* Field Completeness */}
-                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                         <h3 className="font-semibold text-gray-900 mb-3">
                             Field Completeness
                         </h3>
@@ -132,7 +135,7 @@ export default function DataIntegrity() {
                     </div>
 
                     {/* Region Completeness */}
-                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                         <h3 className="font-semibold text-gray-900 mb-3">
                             Region Data Completeness
                         </h3>
@@ -164,7 +167,7 @@ export default function DataIntegrity() {
                 </div>
 
                 {/* Region Normalization */}
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <h3 className="font-semibold text-gray-900 mb-3">
                         Region Name Normalization
                     </h3>
@@ -225,7 +228,7 @@ export default function DataIntegrity() {
                 </div>
 
                 {/* Anomaly Log */}
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-amber-500" />
                         Detected Anomalies
@@ -256,6 +259,7 @@ export default function DataIntegrity() {
                         ))}
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     );

@@ -8,15 +8,14 @@ import {
     ChevronDown,
     ChevronUp,
     AlertTriangle,
-    MapPin,
     Building2,
-    Sparkles,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { chatApi } from "@/api/chat";
 import { facilitiesApi } from "@/api/facilities";
 import { analysisApi } from "@/api/analysis";
 import GhanaMap from "@/components/GhanaMap";
+import { stripEmoji } from "@/lib/utils";
 import type { ChatMessage } from "@/types/chat";
 
 export default function CommandCenter() {
@@ -27,6 +26,7 @@ export default function CommandCenter() {
     const [autoSpeak, setAutoSpeak] = useState(false);
     const [expandedTrace, setExpandedTrace] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
     const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "", []);
 
     // Fetch map data
@@ -155,18 +155,30 @@ export default function CommandCenter() {
     };
 
     const speakResponse = async (text: string) => {
+        const cleanText = text.substring(0, 500);
         try {
             const res = await fetch(`${apiBase}/api/voice/tts`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: text.substring(0, 500) }),
+                body: JSON.stringify({ text: cleanText }),
             });
-            if (res.ok) {
-                const blob = await res.blob();
-                const audio = new Audio(URL.createObjectURL(blob));
-                audio.play();
+            if (!res.ok) throw new Error("TTS request failed");
+            const blob = await res.blob();
+            const audioUrl = URL.createObjectURL(blob);
+            if (audioRef.current) {
+                audioRef.current.pause();
             }
+            const audio = new Audio(audioUrl);
+            audioRef.current = audio;
+            await audio.play();
         } catch {
+            if ("speechSynthesis" in window) {
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                utterance.rate = 1;
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+                return;
+            }
             console.error("TTS failed");
         }
     };
@@ -182,28 +194,130 @@ export default function CommandCenter() {
               .sort((a: any, b: any) => b.totalFacilities - a.totalFacilities)
         : [];
 
-    return (
-        <div className="h-screen flex">
-            {/* Chat Panel - Left */}
-            <div className="w-[380px] border-r border-gray-200 flex flex-col bg-white">
-                <div className="p-4 border-b border-gray-200">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-blue-600" />
-                                Agentic Command Center
-                            </h2>
-                            <p className="text-xs text-gray-500">AI-Powered Healthcare Logistics</p>
-                        </div>
-                        <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                            ONLINE
-                        </span>
-                    </div>
-                </div>
+    const renderInline = (text: string) => {
+        const parts = text.split(/\*\*(.+?)\*\*/g);
+        return parts.map((part, i) =>
+            i % 2 === 1 ? (
+                <strong key={`${part}-${i}`} className="font-semibold text-slate-900">
+                    {part}
+                </strong>
+            ) : (
+                part
+            )
+        );
+    };
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    const renderMarkdownLite = (text: string) => {
+        const cleanText = stripEmoji(text);
+        const lines = cleanText.split(/\r?\n/);
+        const blocks: Array<
+            | { type: "p"; lines: string[] }
+            | { type: "ol"; items: string[] }
+            | { type: "ul"; items: string[] }
+        > = [];
+        let current: typeof blocks[number] | null = null;
+
+        const flush = () => {
+            if (current) blocks.push(current);
+            current = null;
+        };
+
+        for (const rawLine of lines) {
+            const line = rawLine.trimEnd();
+            if (line.trim() === "") {
+                flush();
+                continue;
+            }
+            const olMatch = line.match(/^\s*\d+\.\s+(.*)$/);
+            const ulMatch = line.match(/^\s*[-*]\s+(.*)$/);
+            if (olMatch) {
+                if (!current || current.type !== "ol") {
+                    flush();
+                    current = { type: "ol", items: [] };
+                }
+                (current as { type: "ol"; items: string[] }).items.push(olMatch[1]);
+                continue;
+            }
+            if (ulMatch) {
+                if (!current || current.type !== "ul") {
+                    flush();
+                    current = { type: "ul", items: [] };
+                }
+                (current as { type: "ul"; items: string[] }).items.push(ulMatch[1]);
+                continue;
+            }
+            if (!current || current.type !== "p") {
+                flush();
+                current = { type: "p", lines: [] };
+            }
+            (current as { type: "p"; lines: string[] }).lines.push(line);
+        }
+        flush();
+
+        return (
+            <div className="space-y-2">
+                {blocks.map((block, i) => {
+                    if (block.type === "ol") {
+                        return (
+                            <ol key={`ol-${i}`} className="list-decimal ml-5 space-y-1">
+                                {block.items.map((item, idx) => (
+                                    <li key={idx} className="text-sm text-slate-800">
+                                        {renderInline(item)}
+                                    </li>
+                                ))}
+                            </ol>
+                        );
+                    }
+                    if (block.type === "ul") {
+                        return (
+                            <ul key={`ul-${i}`} className="list-disc ml-5 space-y-1">
+                                {block.items.map((item, idx) => (
+                                    <li key={idx} className="text-sm text-slate-800">
+                                        {renderInline(item)}
+                                    </li>
+                                ))}
+                            </ul>
+                        );
+                    }
+                    return (
+                        <p key={`p-${i}`} className="text-sm text-slate-800 leading-relaxed">
+                            {block.lines.map((l, idx) => (
+                                <span key={idx}>
+                                    {renderInline(l)}
+                                    {idx < block.lines.length - 1 && <br />}
+                                </span>
+                            ))}
+                        </p>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    return (
+        <div className="h-screen bg-slate-50 overflow-hidden">
+            <div className="px-6 py-4 h-full">
+                <div className="grid grid-cols-[360px_1fr_320px] gap-4 h-full min-h-0">
+                    {/* Chat Panel - Left */}
+                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col h-full min-h-0">
+                        <div className="p-4 border-b border-slate-200">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                                        <Building2 className="w-4 h-4 text-blue-600" />
+                                        Command Center
+                                    </h2>
+                                    <p className="text-xs text-slate-500">Regional Operations Overview</p>
+                                </div>
+                                <span className="flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                                    ONLINE
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Messages */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                     {messages.length === 0 && suggested && (
                         <div className="space-y-4">
                             <p className="text-sm text-gray-500 text-center mt-4">
@@ -211,7 +325,9 @@ export default function CommandCenter() {
                             </p>
                             {suggested.queries?.slice(0, 3).map((cat: any) => (
                                 <div key={cat.category}>
-                                    <p className="text-xs font-medium text-gray-400 mb-2">{cat.category}</p>
+                                    <p className="text-xs font-medium text-gray-400 mb-2">
+                                        {stripEmoji(cat.category)}
+                                    </p>
                                     <div className="space-y-1">
                                         {cat.examples?.slice(0, 2).map((q: string) => (
                                             <button
@@ -219,7 +335,7 @@ export default function CommandCenter() {
                                                 onClick={() => handleSuggestionClick(q)}
                                                 className="block w-full text-left text-sm text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors"
                                             >
-                                                {q}
+                                                {stripEmoji(q)}
                                             </button>
                                         ))}
                                     </div>
@@ -235,12 +351,12 @@ export default function CommandCenter() {
                         >
                             {msg.role === "user" ? (
                                 <div className="bg-blue-600 text-white px-4 py-2 rounded-2xl rounded-br-md max-w-[85%] text-sm">
-                                    {msg.content}
+                                    {stripEmoji(msg.content)}
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    <div className="bg-gray-50 px-4 py-3 rounded-2xl rounded-bl-md max-w-full text-sm text-gray-800 whitespace-pre-wrap">
-                                        {msg.content}
+                                    <div className="bg-gray-50 px-4 py-3 rounded-2xl rounded-bl-md max-w-full">
+                                        {renderMarkdownLite(msg.content)}
                                     </div>
 
                                     {/* Sources */}
@@ -329,91 +445,88 @@ export default function CommandCenter() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input */}
-                <div className="p-4 border-t border-gray-200">
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1 flex items-center bg-gray-50 rounded-xl px-4 py-2 border border-gray-200 focus-within:border-blue-400">
-                            <input
-                                type="text"
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                                placeholder="Ask about facilities, medical deserts..."
-                                className="flex-1 bg-transparent text-sm outline-none"
-                                disabled={chatMutation.isPending}
-                            />
-                            <button
-                                onClick={toggleListening}
-                                className={`p-1.5 rounded-lg transition-colors ${
-                                    isListening
-                                        ? "bg-red-100 text-red-600"
-                                        : "text-gray-400 hover:text-gray-600"
-                                }`}
-                            >
-                                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                            </button>
-                        </div>
-                        <button
-                            onClick={handleSend}
-                            disabled={!input.trim() || chatMutation.isPending}
-                            className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <Send className="w-4 h-4" />
-                        </button>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                        <p className="text-xs text-gray-400">AI can make mistakes. Verify critical data.</p>
-                        <button
-                            onClick={() => setAutoSpeak(!autoSpeak)}
-                            className={`flex items-center gap-1 text-xs ${
-                                autoSpeak ? "text-blue-600" : "text-gray-400"
-                            }`}
-                        >
-                            {autoSpeak ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
-                            Auto-read
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Map - Center */}
-            <div className="flex-1 relative">
-                <GhanaMap
-                    facilities={mapData || []}
-                    height="100%"
-                />
-                {/* Map Legend */}
-                <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-3 z-[500]">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">MAP LEGEND</p>
-                    <div className="space-y-1">
-                        {[
-                            { color: "#2563eb", label: "Hospital" },
-                            { color: "#22c55e", label: "Clinic" },
-                            { color: "#f59e0b", label: "Dentist" },
-                            { color: "#ef4444", label: "Anomaly Detected" },
-                        ].map((item) => (
-                            <div key={item.label} className="flex items-center gap-2">
-                                <span
-                                    className="w-3 h-3 rounded-full"
-                                    style={{ backgroundColor: item.color }}
-                                ></span>
-                                <span className="text-xs text-gray-600">{item.label}</span>
+                        {/* Input */}
+                        <div className="p-4 border-t border-slate-200">
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 flex items-center bg-slate-50 rounded-xl px-4 py-2 border border-slate-200 focus-within:border-blue-400">
+                                    <input
+                                        type="text"
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                                        placeholder="Ask about facilities, medical deserts..."
+                                        className="flex-1 bg-transparent text-sm outline-none"
+                                        disabled={chatMutation.isPending}
+                                    />
+                                    <button
+                                        onClick={toggleListening}
+                                        className={`p-1.5 rounded-lg transition-colors ${
+                                            isListening
+                                                ? "bg-red-100 text-red-600"
+                                                : "text-slate-400 hover:text-slate-600"
+                                        }`}
+                                    >
+                                        {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={handleSend}
+                                    disabled={!input.trim() || chatMutation.isPending}
+                                    className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <Send className="w-4 h-4" />
+                                </button>
                             </div>
-                        ))}
+                            <div className="flex items-center justify-between mt-2">
+                                <p className="text-xs text-slate-400">Verify critical data before action.</p>
+                                <button
+                                    onClick={() => setAutoSpeak(!autoSpeak)}
+                                    className={`flex items-center gap-1 text-xs ${
+                                        autoSpeak ? "text-blue-600" : "text-slate-400"
+                                    }`}
+                                >
+                                    {autoSpeak ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+                                    Auto-read
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            {/* Regional Overview - Right */}
-            <div className="w-[300px] border-l border-gray-200 bg-white overflow-y-auto">
-                <div className="p-4 border-b border-gray-200">
-                    <h3 className="font-semibold text-gray-900">Regional Health Overview</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">Data updated: live</p>
-                </div>
+                    {/* Map - Center */}
+                    <div className="relative rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-full min-h-0">
+                        <GhanaMap facilities={mapData || []} height="100%" />
+                        {/* Map Legend */}
+                        <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-3 z-[500]">
+                            <p className="text-xs font-semibold text-gray-700 mb-2">MAP LEGEND</p>
+                            <div className="space-y-1">
+                                {[
+                                    { color: "#2563eb", label: "Hospital" },
+                                    { color: "#22c55e", label: "Clinic" },
+                                    { color: "#f59e0b", label: "Dentist" },
+                                    { color: "#ef4444", label: "Anomaly Detected" },
+                                ].map((item) => (
+                                    <div key={item.label} className="flex items-center gap-2">
+                                        <span
+                                            className="w-3 h-3 rounded-full"
+                                            style={{ backgroundColor: item.color }}
+                                        ></span>
+                                        <span className="text-xs text-gray-600">{item.label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Regional Overview - Right */}
+                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-y-auto h-full min-h-0">
+                        <div className="p-4 border-b border-slate-200">
+                            <h3 className="font-semibold text-gray-900">Regional Health Overview</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">Data updated: live</p>
+                        </div>
 
                 {/* Critical alert */}
-                {stats && (
-                    <div className="mx-4 mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                        {stats && (
+                            <div className="mx-4 mt-4 bg-red-50 border border-red-200 rounded-xl p-3">
                         <div className="flex items-center gap-2 mb-1">
                             <AlertTriangle className="w-4 h-4 text-red-600" />
                             <span className="text-sm font-semibold text-red-700">
@@ -428,46 +541,48 @@ export default function CommandCenter() {
                 )}
 
                 {/* Stats */}
-                <div className="p-4 space-y-3">
-                    <div>
-                        <p className="text-xs text-gray-500">Total Facilities</p>
-                        <p className="text-2xl font-bold text-gray-900">{stats?.total || "..."}</p>
-                    </div>
+                        <div className="p-4 space-y-3">
+                            <div>
+                                <p className="text-xs text-gray-500">Total Facilities</p>
+                                <p className="text-2xl font-bold text-gray-900">{stats?.total || "..."}</p>
+                            </div>
 
-                    <div>
-                        <p className="text-xs text-gray-500">Medical Deserts</p>
-                        <p className="text-xl font-bold text-red-600">
-                            {sortedRegions.filter((r: any) => r.isMedicalDesert).length}
-                            <span className="text-xs font-normal text-red-400 ml-1">High Priority</span>
-                        </p>
-                    </div>
-                </div>
+                            <div>
+                                <p className="text-xs text-gray-500">Medical Deserts</p>
+                                <p className="text-xl font-bold text-red-600">
+                                    {sortedRegions.filter((r: any) => r.isMedicalDesert).length}
+                                    <span className="text-xs font-normal text-red-400 ml-1">High Priority</span>
+                                </p>
+                            </div>
+                        </div>
 
                 {/* Region list */}
-                <div className="px-4 pb-4 space-y-2">
-                    <p className="text-xs font-medium text-gray-400 uppercase">Regions</p>
-                    {sortedRegions.map((r: any) => (
-                        <div
-                            key={r.region}
-                            className={`p-2.5 rounded-lg border text-sm ${
-                                r.isMedicalDesert
-                                    ? "border-red-200 bg-red-50"
-                                    : "border-gray-100 bg-gray-50"
-                            }`}
-                        >
-                            <div className="flex items-center justify-between">
-                                <span className="font-medium text-gray-800">{r.region}</span>
-                                <span className="text-xs text-gray-500">
-                                    {r.totalFacilities} facilities
-                                </span>
-                            </div>
-                            {r.isMedicalDesert && r.desertGaps?.length > 0 && (
-                                <p className="text-xs text-red-500 mt-1">
-                                    Missing: {r.desertGaps.slice(0, 3).join(", ")}
-                                </p>
-                            )}
+                        <div className="px-4 pb-4 space-y-2">
+                            <p className="text-xs font-medium text-gray-400 uppercase">Regions</p>
+                            {sortedRegions.map((r: any) => (
+                                <div
+                                    key={r.region}
+                                    className={`p-2.5 rounded-xl border text-sm ${
+                                        r.isMedicalDesert
+                                            ? "border-red-200 bg-red-50"
+                                            : "border-gray-100 bg-gray-50"
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-medium text-gray-800">{r.region}</span>
+                                        <span className="text-xs text-gray-500">
+                                            {r.totalFacilities} facilities
+                                        </span>
+                                    </div>
+                                    {r.isMedicalDesert && r.desertGaps?.length > 0 && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            Missing: {r.desertGaps.slice(0, 3).join(", ")}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    </div>
                 </div>
             </div>
         </div>
