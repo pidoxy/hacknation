@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
     Search,
     Filter,
@@ -10,6 +10,9 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { facilitiesApi } from "@/api/facilities";
 import GhanaMap from "@/components/GhanaMap";
+import { analysisApi } from "@/api/analysis";
+import { REGION_CENTROIDS } from "@/data/regionCentroids";
+import type { DesertZone } from "@/types/facility";
 
 const REGIONS = [
     "Greater Accra", "Ashanti", "Western", "Eastern", "Central", "Northern",
@@ -62,6 +65,14 @@ export default function FacilityExplorer() {
         },
     });
 
+    const { data: regionStats } = useQuery({
+        queryKey: ["regionStats"],
+        queryFn: async () => {
+            const res = await analysisApi.regionStats();
+            return res.data;
+        },
+    });
+
     // Facility detail
     const { data: facilityDetail } = useQuery({
         queryKey: ["facilityDetail", selectedFacility],
@@ -83,12 +94,33 @@ export default function FacilityExplorer() {
         showAnomaliesOnly && { label: "Anomalies Only", clear: () => setShowAnomaliesOnly(false) },
     ].filter(Boolean);
 
+    const desertZones: DesertZone[] = useMemo(() => {
+        if (!regionStats) return [];
+        return Object.entries(regionStats)
+            .filter(([, stats]: any) => stats.isMedicalDesert)
+            .map(([region, stats]: any) => {
+                const centroid = REGION_CENTROIDS[region];
+                if (!centroid) return null;
+                const severity = stats.totalFacilities === 0 ? "critical" : "high";
+                const radiusKm = severity === "critical" ? 80 : 45;
+                return {
+                    region,
+                    lat: centroid[0],
+                    lng: centroid[1],
+                    radiusKm,
+                    severity,
+                    gaps: stats.desertGaps || [],
+                };
+            })
+            .filter(Boolean) as DesertZone[];
+    }, [regionStats]);
+
     return (
         <div className="min-h-screen bg-slate-50">
             <div className="px-6 py-4">
                 <div className="grid grid-cols-[260px_1fr] gap-4">
                     {/* Filter Sidebar */}
-                    <aside className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-y-auto">
+                    <aside className="rounded-md border border-slate-200 bg-white shadow-sm overflow-y-auto">
                         <div className="p-4 border-b border-slate-200">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-xs font-semibold text-slate-500 flex items-center gap-2 tracking-wide">
@@ -162,7 +194,7 @@ export default function FacilityExplorer() {
                     {/* Main Content */}
                     <div className="space-y-4">
                         {/* Search Bar */}
-                        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+                        <div className="rounded-md border border-slate-200 bg-white shadow-sm p-4">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <h2 className="text-lg font-semibold text-slate-900">
@@ -173,7 +205,7 @@ export default function FacilityExplorer() {
                                     </p>
                                 </div>
                             </div>
-                            <div className="mt-3 flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
+                            <div className="mt-3 flex items-center gap-2 bg-slate-50 rounded-md px-4 py-3 border border-slate-200">
                                 <Search className="w-4 h-4 text-slate-400" />
                                 <input
                                     type="text"
@@ -206,17 +238,17 @@ export default function FacilityExplorer() {
                             )}
 
                             <div className="mt-3 grid grid-cols-3 gap-3">
-                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
                                     <p className="text-[11px] uppercase text-slate-400">Facilities Found</p>
                                     <p className="text-lg font-semibold text-slate-900">{listData?.total || 0}</p>
                                 </div>
-                                <div className="rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-2">
+                                <div className="rounded-md border border-amber-200 bg-amber-50/40 px-3 py-2">
                                     <p className="text-[11px] uppercase text-amber-700/70">Anomalies Detected</p>
                                     <p className="text-lg font-semibold text-amber-700">
                                         {displayFacilities.filter((f: any) => f.hasAnomalies).length}
                                     </p>
                                 </div>
-                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
                                     <p className="text-[11px] uppercase text-slate-400">Medical Deserts</p>
                                     <p className="text-lg font-semibold text-slate-900">
                                         {(listData as any)?.medicalDeserts ?? 0}
@@ -225,21 +257,21 @@ export default function FacilityExplorer() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-[420px_1fr] gap-4 min-h-[calc(100vh-270px)]">
+                        <div className="grid grid-cols-[420px_1fr] gap-4 h-[calc(100vh-270px)] min-h-[520px] items-stretch">
                             {/* Facility List */}
-                            <div className="space-y-3 overflow-y-auto pr-1">
+                            <div className="space-y-3 overflow-y-auto pr-1 h-full min-h-0">
                                 {displayFacilities.map((f: any) => {
                                     const completeness = Math.round(f.dataCompleteness * 100);
                                     return (
                                         <div
                                             key={f.uniqueId}
                                             onClick={() => setSelectedFacility(f.uniqueId)}
-                                            className={`relative rounded-2xl border p-4 cursor-pointer transition-all hover:shadow-md bg-white ${
+                                            className={`relative rounded-md border p-4 cursor-pointer transition-all hover:shadow-md bg-white ${
                                                 selectedFacility === f.uniqueId ? "border-blue-300" : "border-slate-200"
                                             }`}
                                         >
                                             <div
-                                                className={`absolute left-0 top-0 h-full w-1.5 rounded-l-2xl ${
+                                                className={`absolute left-0 top-0 h-full w-1.5 rounded-l-md ${
                                                     f.hasAnomalies ? "bg-amber-400" : "bg-emerald-500"
                                                 }`}
                                             />
@@ -265,7 +297,7 @@ export default function FacilityExplorer() {
                                             </div>
 
                                             <div className="flex items-center gap-2 mt-2 pl-2">
-                                                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded capitalize">
+                                                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md capitalize">
                                                     {f.facilityType || "Unknown"}
                                                 </span>
                                                 <span className="text-xs text-slate-400">
@@ -295,10 +327,10 @@ export default function FacilityExplorer() {
                                             )}
 
                                             <div className="mt-3 flex items-center gap-2 pl-2">
-                                                <button className="text-xs px-3 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+                                                <button className="text-xs px-3 py-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50">
                                                     View Details
                                                 </button>
-                                                <button className="text-xs px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100">
+                                                <button className="text-xs px-3 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">
                                                     Log Interaction
                                                 </button>
                                             </div>
@@ -331,13 +363,14 @@ export default function FacilityExplorer() {
                             </div>
 
                             {/* Map */}
-                            <div className="relative rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                            <div className="relative rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden h-full min-h-0">
                                 <GhanaMap
                                     facilities={mapData || []}
+                                    desertZones={desertZones}
                                     onFacilityClick={setSelectedFacility}
                                     height="100%"
                                 />
-                                <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-3 z-[500]">
+                                <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-sm rounded-md shadow-lg p-3 z-[500]">
                                     <p className="text-xs font-semibold text-gray-700 mb-2">MAP LEGEND</p>
                                     <div className="space-y-1">
                                         {[
@@ -358,7 +391,7 @@ export default function FacilityExplorer() {
                                 </div>
 
                                 {facilityDetail && (
-                                    <div className="absolute top-4 right-4 w-[320px] rounded-2xl border border-slate-200 bg-white shadow-xl z-[600] overflow-hidden">
+                                    <div className="absolute top-4 right-4 w-[320px] rounded-md border border-slate-200 bg-white shadow-xl z-[600] overflow-hidden">
                                         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                                             <h3 className="font-semibold text-gray-900">Facility Detail</h3>
                                             <button

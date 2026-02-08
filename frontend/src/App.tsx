@@ -22,7 +22,7 @@ export default function App() {
             <BrowserRouter>
                 <div className="min-h-screen bg-slate-50">
                     <Sidebar />
-                    <main className="ml-64 min-h-screen">
+                    <main className="ml-52 min-h-screen">
                         <Routes>
                             <Route path="/" element={<CommandCenter />} />
                             <Route path="/idp" element={<IDPAgentView />} />

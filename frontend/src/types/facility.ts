@@ -66,6 +66,15 @@ export interface RegionStats {
     facilitiesPer100k?: number;
 }
 
+export interface DesertZone {
+    region: string;
+    lat: number;
+    lng: number;
+    radiusKm: number;
+    severity?: "critical" | "high";
+    gaps?: string[];
+}
+
 export interface DataQualityStats {
     totalFacilities: number;
     uniqueFacilities: number;

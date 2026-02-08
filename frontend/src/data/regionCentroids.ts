@@ -1,0 +1,18 @@
+export const REGION_CENTROIDS: Record<string, [number, number]> = {
+    "Greater Accra": [5.6037, -0.1870],
+    "Ashanti": [6.7470, -1.5209],
+    "Northern": [9.5439, -0.9057],
+    "Western": [5.1, -2.2],
+    "Eastern": [6.25, -0.5],
+    "Central": [5.4, -1.2],
+    "Volta": [6.8, 0.5],
+    "Oti": [7.9, 0.2],
+    "Upper East": [10.75, -0.85],
+    "Upper West": [10.25, -2.2],
+    "Bono": [7.5, -2.3],
+    "Bono East": [7.75, -1.5],
+    "Ahafo": [6.9, -2.5],
+    "Western North": [6.3, -2.5],
+    "North East": [10.4, -0.3],
+    "Savannah": [9.0, -1.8],
+};

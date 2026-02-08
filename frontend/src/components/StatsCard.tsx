@@ -46,7 +46,7 @@ export default function StatsCard({
     return (
         <div
             className={cn(
-                "rounded-2xl border p-4 shadow-sm",
+                "rounded-md border p-4 shadow-sm",
                 variants[variant].card,
                 className
             )}
@@ -55,7 +55,7 @@ export default function StatsCard({
                 {Icon && (
                     <div
                         className={cn(
-                            "h-9 w-9 rounded-xl flex items-center justify-center",
+                            "h-9 w-9 rounded-md flex items-center justify-center",
                             variants[variant].iconWrap
                         )}
                     >

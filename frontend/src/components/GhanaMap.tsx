@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
-import type { FacilityMapData } from "@/types/facility";
+import { MapContainer, TileLayer, CircleMarker, Circle, Popup, useMap } from "react-leaflet";
+import type { DesertZone, FacilityMapData } from "@/types/facility";
 import "leaflet/dist/leaflet.css";
 
 interface GhanaMapProps {
@@ -9,6 +9,7 @@ interface GhanaMapProps {
     onFacilityClick?: (id: string) => void;
     height?: string;
     className?: string;
+    desertZones?: DesertZone[];
 }
 
 const typeColors: Record<string, string> = {
@@ -34,6 +35,7 @@ export default function GhanaMap({
     onFacilityClick,
     height = "100%",
     className = "",
+    desertZones = [],
 }: GhanaMapProps) {
     const center: [number, number] = [7.9465, -1.0232];
     const zoom = 7;
@@ -51,6 +53,36 @@ export default function GhanaMap({
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <MapController center={center} zoom={zoom} />
+
+                {desertZones.map((zone) => (
+                    <Circle
+                        key={`desert-${zone.region}`}
+                        center={[zone.lat, zone.lng]}
+                        radius={zone.radiusKm * 1000}
+                        pathOptions={{
+                            color: zone.severity === "critical" ? "#ef4444" : "#f59e0b",
+                            fillColor: zone.severity === "critical" ? "#fecaca" : "#fde68a",
+                            fillOpacity: 0.18,
+                            weight: 2,
+                            dashArray: "6 6",
+                        }}
+                    >
+                        <Popup>
+                            <div className="text-sm">
+                                <p className="font-semibold">Medical Desert Zone</p>
+                                <p className="text-gray-500">{zone.region}</p>
+                                {zone.gaps && zone.gaps.length > 0 && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                        Missing: {zone.gaps.slice(0, 3).join(", ")}
+                                    </p>
+                                )}
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Radius: {zone.radiusKm} km
+                                </p>
+                            </div>
+                        </Popup>
+                    </Circle>
+                ))}
 
                 {facilities.map((f) => (
                     <CircleMarker

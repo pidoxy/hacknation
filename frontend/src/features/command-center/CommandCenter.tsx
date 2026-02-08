@@ -16,7 +16,9 @@ import { facilitiesApi } from "@/api/facilities";
 import { analysisApi } from "@/api/analysis";
 import GhanaMap from "@/components/GhanaMap";
 import { stripEmoji } from "@/lib/utils";
+import { REGION_CENTROIDS } from "@/data/regionCentroids";
 import type { ChatMessage } from "@/types/chat";
+import type { DesertZone } from "@/types/facility";
 
 export default function CommandCenter() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -194,6 +196,27 @@ export default function CommandCenter() {
               .sort((a: any, b: any) => b.totalFacilities - a.totalFacilities)
         : [];
 
+    const desertZones: DesertZone[] = useMemo(() => {
+        if (!regionStats) return [];
+        return Object.entries(regionStats)
+            .filter(([, stats]: any) => stats.isMedicalDesert)
+            .map(([region, stats]: any) => {
+                const centroid = REGION_CENTROIDS[region];
+                if (!centroid) return null;
+                const severity = stats.totalFacilities === 0 ? "critical" : "high";
+                const radiusKm = severity === "critical" ? 80 : 45;
+                return {
+                    region,
+                    lat: centroid[0],
+                    lng: centroid[1],
+                    radiusKm,
+                    severity,
+                    gaps: stats.desertGaps || [],
+                };
+            })
+            .filter(Boolean) as DesertZone[];
+    }, [regionStats]);
+
     const renderInline = (text: string) => {
         const parts = text.split(/\*\*(.+?)\*\*/g);
         return parts.map((part, i) =>
@@ -296,10 +319,10 @@ export default function CommandCenter() {
 
     return (
         <div className="h-screen bg-slate-50 overflow-hidden">
-            <div className="px-6 py-4 h-full">
-                <div className="grid grid-cols-[360px_1fr_320px] gap-4 h-full min-h-0">
+            <div className="px-2 py-2 h-full">
+                <div className="grid grid-cols-[300px_1fr_260px] gap-2 h-full min-h-0">
                     {/* Chat Panel - Left */}
-                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col h-full min-h-0">
+                    <div className="rounded-md border border-slate-200 bg-white shadow-sm flex flex-col h-full min-h-0">
                         <div className="p-4 border-b border-slate-200">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -350,12 +373,12 @@ export default function CommandCenter() {
                             className={`${msg.role === "user" ? "flex justify-end" : ""}`}
                         >
                             {msg.role === "user" ? (
-                                <div className="bg-blue-600 text-white px-4 py-2 rounded-2xl rounded-br-md max-w-[85%] text-sm">
+                                <div className="bg-blue-600 text-white px-4 py-2 rounded-md rounded-br-sm max-w-[85%] text-sm">
                                     {stripEmoji(msg.content)}
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    <div className="bg-gray-50 px-4 py-3 rounded-2xl rounded-bl-md max-w-full">
+                                    <div className="bg-gray-50 px-4 py-3 rounded-md rounded-bl-sm max-w-full">
                                         {renderMarkdownLite(msg.content)}
                                     </div>
 
@@ -448,7 +471,7 @@ export default function CommandCenter() {
                         {/* Input */}
                         <div className="p-4 border-t border-slate-200">
                             <div className="flex items-center gap-2">
-                                <div className="flex-1 flex items-center bg-slate-50 rounded-xl px-4 py-2 border border-slate-200 focus-within:border-blue-400">
+                                <div className="flex-1 flex items-center bg-slate-50 rounded-md px-4 py-2 border border-slate-200 focus-within:border-blue-400">
                                     <input
                                         type="text"
                                         value={input}
@@ -460,7 +483,7 @@ export default function CommandCenter() {
                                     />
                                     <button
                                         onClick={toggleListening}
-                                        className={`p-1.5 rounded-lg transition-colors ${
+                                        className={`p-1.5 rounded-md transition-colors ${
                                             isListening
                                                 ? "bg-red-100 text-red-600"
                                                 : "text-slate-400 hover:text-slate-600"
@@ -472,7 +495,7 @@ export default function CommandCenter() {
                                 <button
                                     onClick={handleSend}
                                     disabled={!input.trim() || chatMutation.isPending}
-                                    className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    className="bg-blue-600 text-white p-2.5 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <Send className="w-4 h-4" />
                                 </button>
@@ -493,10 +516,14 @@ export default function CommandCenter() {
                     </div>
 
                     {/* Map - Center */}
-                    <div className="relative rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-full min-h-0">
-                        <GhanaMap facilities={mapData || []} height="100%" />
+                    <div className="relative rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden h-full min-h-0">
+                        <GhanaMap
+                            facilities={mapData || []}
+                            desertZones={desertZones}
+                            height="100%"
+                        />
                         {/* Map Legend */}
-                        <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-3 z-[500]">
+                        <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-md shadow-lg p-3 z-[500]">
                             <p className="text-xs font-semibold text-gray-700 mb-2">MAP LEGEND</p>
                             <div className="space-y-1">
                                 {[
@@ -504,6 +531,7 @@ export default function CommandCenter() {
                                     { color: "#22c55e", label: "Clinic" },
                                     { color: "#f59e0b", label: "Dentist" },
                                     { color: "#ef4444", label: "Anomaly Detected" },
+                                    { color: "#ef4444", label: "Medical Desert Zone" },
                                 ].map((item) => (
                                     <div key={item.label} className="flex items-center gap-2">
                                         <span
@@ -518,7 +546,7 @@ export default function CommandCenter() {
                     </div>
 
                     {/* Regional Overview - Right */}
-                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-y-auto h-full min-h-0">
+                    <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-y-auto h-full min-h-0">
                         <div className="p-4 border-b border-slate-200">
                             <h3 className="font-semibold text-gray-900">Regional Health Overview</h3>
                             <p className="text-xs text-gray-500 mt-0.5">Data updated: live</p>
@@ -526,7 +554,7 @@ export default function CommandCenter() {
 
                 {/* Critical alert */}
                         {stats && (
-                            <div className="mx-4 mt-4 bg-red-50 border border-red-200 rounded-xl p-3">
+                            <div className="mx-4 mt-4 bg-red-50 border border-red-200 rounded-md p-3">
                         <div className="flex items-center gap-2 mb-1">
                             <AlertTriangle className="w-4 h-4 text-red-600" />
                             <span className="text-sm font-semibold text-red-700">
@@ -562,7 +590,7 @@ export default function CommandCenter() {
                             {sortedRegions.map((r: any) => (
                                 <div
                                     key={r.region}
-                                    className={`p-2.5 rounded-xl border text-sm ${
+                                    className={`p-2.5 rounded-md border text-sm ${
                                         r.isMedicalDesert
                                             ? "border-red-200 bg-red-50"
                                             : "border-gray-100 bg-gray-50"
