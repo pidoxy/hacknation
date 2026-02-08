@@ -1,22 +1,25 @@
 import numpy as np
 import faiss
 from typing import List, Tuple, Optional
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 
+from config import get_settings
 from models.facility import Facility
 
 
 class VectorStore:
-    """FAISS-based vector store for semantic facility search."""
+    """FAISS vector store backed by OpenAI embeddings."""
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self.model = SentenceTransformer(model_name)
-        self.index: Optional[faiss.IndexFlatL2] = None
+    def __init__(self, model_name: Optional[str] = None):
+        settings = get_settings()
+        self.model_name = model_name or settings.embedding_model
+        self.client = OpenAI(api_key=settings.openai_api_key)
+        self.index: Optional[faiss.IndexFlatIP] = None
         self.facility_ids: List[str] = []
         self.facilities_map: dict = {}
 
     def build_index(self, facilities: List[Facility]):
-        """Build FAISS index from facility data."""
+        """Build FAISS index from facility data using OpenAI embeddings."""
         texts = []
         self.facility_ids = []
         self.facilities_map = {}
@@ -27,13 +30,13 @@ class VectorStore:
             self.facility_ids.append(f.unique_id)
             self.facilities_map[f.unique_id] = f
 
-        # Generate embeddings
-        embeddings = self.model.encode(texts, show_progress_bar=False, normalize_embeddings=True)
-        embeddings = np.array(embeddings, dtype=np.float32)
+        if not texts:
+            self.index = None
+            return self
 
-        # Build FAISS index
+        embeddings = self._embed_texts(texts)
         dim = embeddings.shape[1]
-        self.index = faiss.IndexFlatIP(dim)  # Inner product (cosine sim with normalized vectors)
+        self.index = faiss.IndexFlatIP(dim)
         self.index.add(embeddings)
 
         return self
@@ -43,9 +46,7 @@ class VectorStore:
         if self.index is None:
             return []
 
-        query_embedding = self.model.encode([query], normalize_embeddings=True)
-        query_embedding = np.array(query_embedding, dtype=np.float32)
-
+        query_embedding = self._embed_texts([query])
         scores, indices = self.index.search(query_embedding, min(top_k, len(self.facility_ids)))
 
         results = []
@@ -58,6 +59,26 @@ class VectorStore:
                 results.append((facility, float(score)))
 
         return results
+
+    def _embed_texts(self, texts: List[str], batch_size: int = 64) -> np.ndarray:
+        if not texts:
+            return np.array([], dtype=np.float32)
+
+        embeddings: List[List[float]] = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            response = self.client.embeddings.create(
+                model=self.model_name,
+                input=batch,
+            )
+            data_sorted = sorted(response.data, key=lambda d: d.index)
+            embeddings.extend([item.embedding for item in data_sorted])
+
+        arr = np.array(embeddings, dtype=np.float32)
+        norms = np.linalg.norm(arr, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        arr = arr / norms
+        return arr
 
     def _facility_to_text(self, f: Facility) -> str:
         """Convert a facility to a searchable text document."""

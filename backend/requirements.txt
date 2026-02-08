@@ -10,9 +10,7 @@ openai==1.61.0
 langchain==0.3.19
 langchain-openai==0.3.7
 langgraph==0.2.74
-sentence-transformers==3.0.0
 elevenlabs==1.0.0
 python-multipart==0.0.20
 httpx==0.28.1
 orjson==3.10.15
-scikit-learn==1.6.1

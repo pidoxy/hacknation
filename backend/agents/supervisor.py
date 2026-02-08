@@ -118,7 +118,7 @@ class AgentSupervisor:
             output_summary=f"Found {len(context_data.get('facilities', []))} relevant facilities, "
                           f"{len(context_data.get('desert_data', []))} desert entries",
             data_sources=[
-                "faiss_index",
+                "vector_store",
                 "facility_database",
                 "desert_matrix",
                 "geospatial_calc",

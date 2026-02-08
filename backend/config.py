@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"
-    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_model: str = "text-embedding-3-small"
     csv_path: str = "data/ghana_facilities.csv"
     host: str = "0.0.0.0"
     port: int = 8000
