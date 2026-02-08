@@ -66,5 +66,16 @@
     "notes": "",
     "created_at": "2026-02-08T08:29:05.524Z",
     "id": "60ed8921-5e7e-4f3f-9416-084c83c9ab74"
+  },
+  {
+    "title": "Regional Deployment Plan",
+    "region": "Western",
+    "capability_gap": "Internal Medicine",
+    "priority": "High",
+    "assets": [],
+    "actions": [],
+    "notes": "",
+    "created_at": "2026-02-08T23:38:01.177Z",
+    "id": "e87a4a58-ba28-42f2-86cf-977b7c313906"
   }
 ]

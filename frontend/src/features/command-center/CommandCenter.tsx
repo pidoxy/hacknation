@@ -25,6 +25,7 @@ export default function CommandCenter() {
     const [input, setInput] = useState("");
     const [conversationId, setConversationId] = useState<string>();
     const [isListening, setIsListening] = useState(false);
+    const [sttStatus, setSttStatus] = useState<string | null>(null);
     const [autoSpeak, setAutoSpeak] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
@@ -32,6 +33,8 @@ export default function CommandCenter() {
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const recorderRef = useRef<MediaRecorder | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
     const apiBase = useMemo(() => import.meta.env.VITE_API_URL || "", []);
 
     // Fetch map data
@@ -123,18 +126,54 @@ export default function CommandCenter() {
 
     const toggleListening = async () => {
         if (isListening) {
+            // Stop recording manually
+            if (recorderRef.current && recorderRef.current.state === "recording") {
+                recorderRef.current.stop();
+            }
             setIsListening(false);
             return;
         }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+            streamRef.current = stream;
+
+            // Pick best supported mime type
+            const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+                ? "audio/webm;codecs=opus"
+                : MediaRecorder.isTypeSupported("audio/webm")
+                    ? "audio/webm"
+                    : MediaRecorder.isTypeSupported("audio/mp4")
+                        ? "audio/mp4"
+                        : "";
+
+            const recorderOptions: MediaRecorderOptions = mimeType ? { mimeType } : {};
+            const recorder = new MediaRecorder(stream, recorderOptions);
+            recorderRef.current = recorder;
             const chunks: Blob[] = [];
-            recorder.ondataavailable = (e) => chunks.push(e.data);
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
             recorder.onstop = async () => {
-                const blob = new Blob(chunks, { type: "audio/webm" });
+                // Clean up stream
+                stream.getTracks().forEach((t) => t.stop());
+                streamRef.current = null;
+                recorderRef.current = null;
+
+                const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
+
+                if (blob.size < 100) {
+                    setSttStatus("Recording too short — try again");
+                    setTimeout(() => setSttStatus(null), 3000);
+                    return;
+                }
+
+                setSttStatus("Transcribing...");
                 const formData = new FormData();
-                formData.append("audio", blob);
+                const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+                formData.append("audio", blob, `recording.${ext}`);
+
                 try {
                     const res = await fetch(`${apiBase}/api/voice/stt`, {
                         method: "POST",
@@ -143,20 +182,36 @@ export default function CommandCenter() {
                     const data = await res.json();
                     if (data.text) {
                         setInput(data.text);
+                        setSttStatus(null);
+                    } else if (data.error) {
+                        setSttStatus(data.error);
+                        setTimeout(() => setSttStatus(null), 4000);
+                    } else {
+                        setSttStatus("No speech detected — try again");
+                        setTimeout(() => setSttStatus(null), 3000);
                     }
-                } catch {
-                    console.error("STT failed");
+                } catch (err) {
+                    console.error("STT failed:", err);
+                    setSttStatus("Connection error — check backend");
+                    setTimeout(() => setSttStatus(null), 4000);
                 }
-                stream.getTracks().forEach((t) => t.stop());
             };
+
             recorder.start();
             setIsListening(true);
+            setSttStatus("Listening... click mic to stop");
+
+            // Auto-stop after 15 seconds
             setTimeout(() => {
-                recorder.stop();
-                setIsListening(false);
-            }, 5000);
-        } catch {
-            console.error("Microphone not available");
+                if (recorderRef.current && recorderRef.current.state === "recording") {
+                    recorderRef.current.stop();
+                    setIsListening(false);
+                }
+            }, 15000);
+        } catch (err) {
+            console.error("Microphone not available:", err);
+            setSttStatus("Microphone access denied");
+            setTimeout(() => setSttStatus(null), 4000);
         }
     };
 
@@ -216,7 +271,7 @@ export default function CommandCenter() {
         }
     };
 
-    // Cleanup audio on unmount
+    // Cleanup audio and recorder on unmount
     useEffect(() => {
         return () => {
             if (audioRef.current) {
@@ -225,6 +280,12 @@ export default function CommandCenter() {
             }
             if ("speechSynthesis" in window) {
                 window.speechSynthesis.cancel();
+            }
+            if (recorderRef.current && recorderRef.current.state === "recording") {
+                recorderRef.current.stop();
+            }
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach((t) => t.stop());
             }
         };
     }, []);
@@ -514,11 +575,11 @@ export default function CommandCenter() {
     };
 
     return (
-        <div className="h-screen bg-slate-50 overflow-hidden">
-            <div className="px-2 py-2 h-full">
-                <div className="grid grid-cols-[300px_1fr_260px] gap-2 h-full min-h-0">
+        <div className="h-screen w-full bg-slate-50 overflow-hidden">
+            <div className="px-2 py-2 h-full w-full">
+                <div className="grid grid-cols-[300px_1fr_260px] gap-2 h-full min-h-0 w-full min-w-0">
                     {/* Chat Panel - Left */}
-                    <div className="rounded-md border border-slate-200 bg-white shadow-sm flex flex-col h-full min-h-0">
+                    <div className="rounded-md border border-slate-200 bg-white shadow-sm flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
                         <div className="p-4 border-b border-slate-200">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -575,8 +636,8 @@ export default function CommandCenter() {
                                     {stripEmoji(msg.content)}
                                 </div>
                             ) : (
-                                <div className="space-y-2">
-                                    <div className="bg-gray-50 px-4 py-3 rounded-md rounded-bl-sm max-w-full">
+                                <div className="space-y-2 min-w-0 max-w-full overflow-hidden">
+                                    <div className="bg-gray-50 px-4 py-3 rounded-md rounded-bl-sm max-w-full overflow-hidden break-words">
                                         {renderMarkdownLite(msg.content)}
                                     </div>
 
@@ -731,14 +792,29 @@ export default function CommandCenter() {
                                     Stop Audio
                                 </button>
                             )}
+                            {sttStatus && (
+                                <div className={`mb-2 text-xs text-center py-1.5 rounded-md transition-colors ${
+                                    isListening
+                                        ? "text-red-600 bg-red-50 border border-red-200 animate-pulse"
+                                        : sttStatus.includes("Transcribing")
+                                            ? "text-blue-600 bg-blue-50 border border-blue-200"
+                                            : sttStatus.includes("error") || sttStatus.includes("denied") || sttStatus.includes("failed")
+                                                ? "text-amber-600 bg-amber-50 border border-amber-200"
+                                                : "text-slate-600 bg-slate-50 border border-slate-200"
+                                }`}>
+                                    {sttStatus}
+                                </div>
+                            )}
                             <div className="flex items-center gap-2">
-                                <div className="flex-1 flex items-center bg-slate-50 rounded-md px-4 py-2 border border-slate-200 focus-within:border-blue-400">
+                                <div className={`flex-1 flex items-center bg-slate-50 rounded-md px-4 py-2 border transition-colors ${
+                                    isListening ? "border-red-400 bg-red-50/30" : "border-slate-200 focus-within:border-blue-400"
+                                }`}>
                                     <input
                                         type="text"
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                                        placeholder="Ask about facilities, medical deserts..."
+                                        placeholder={isListening ? "Listening... speak now" : "Ask about facilities, medical deserts..."}
                                         className="flex-1 bg-transparent text-sm outline-none"
                                         disabled={chatMutation.isPending}
                                     />
@@ -746,9 +822,10 @@ export default function CommandCenter() {
                                         onClick={toggleListening}
                                         className={`p-1.5 rounded-md transition-colors ${
                                             isListening
-                                                ? "bg-red-100 text-red-600"
+                                                ? "bg-red-100 text-red-600 animate-pulse"
                                                 : "text-slate-400 hover:text-slate-600"
                                         }`}
+                                        title={isListening ? "Stop recording" : "Start voice input"}
                                     >
                                         {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                                     </button>
@@ -809,7 +886,7 @@ export default function CommandCenter() {
                     </div>
 
                     {/* Regional Overview - Right */}
-                    <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-y-auto h-full min-h-0">
+                    <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-y-auto h-full min-h-0 min-w-0">
                         <div className="p-4 border-b border-slate-200">
                             <h3 className="font-semibold text-gray-900">Regional Health Overview</h3>
                             <p className="text-xs text-gray-500 mt-0.5">

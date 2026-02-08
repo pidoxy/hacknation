@@ -74,29 +74,42 @@ async def text_to_speech(request: TTSRequest):
 
 @router.post("/stt")
 async def speech_to_text(audio: UploadFile = File(...)):
-    """Convert speech to text using ElevenLabs Scribe v2."""
+    """Convert speech to text using ElevenLabs Scribe."""
     settings = get_settings()
 
-    try:
-        from elevenlabs import ElevenLabs
+    if not settings.elevenlabs_api_key:
+        return {"error": "ElevenLabs API key not configured", "text": ""}
 
-        client = ElevenLabs(api_key=settings.elevenlabs_api_key)
+    try:
+        from elevenlabs import ElevenLabs as ElevenLabsClient
+
+        client = ElevenLabsClient(api_key=settings.elevenlabs_api_key)
 
         audio_bytes = await audio.read()
 
+        if len(audio_bytes) < 100:
+            return {"error": "Audio too short — please speak longer", "text": ""}
+
         result = client.speech_to_text.convert(
-            file=io.BytesIO(audio_bytes),
+            file=audio_bytes,
             model_id="scribe_v1",
             language_code="en",
         )
 
+        text = getattr(result, "text", "") or ""
+        text = text.strip()
+
+        if not text:
+            return {"error": "No speech detected — please try again", "text": ""}
+
         return {
-            "text": result.text,
+            "text": text,
             "language": getattr(result, "language_code", "en"),
         }
     except ImportError:
         return {"error": "ElevenLabs SDK not installed", "text": ""}
     except Exception as e:
+        print(f"STT error: {type(e).__name__}: {e}")
         return {"error": f"STT failed: {str(e)}", "text": ""}
 
 

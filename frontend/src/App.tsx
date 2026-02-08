@@ -30,7 +30,7 @@ export default function App() {
                         onToggle={() => setSidebarCollapsed((prev) => !prev)}
                     />
                     <main
-                        className={`min-h-screen transition-[margin] duration-200 ${
+                        className={`min-h-screen transition-[margin] duration-200 overflow-hidden ${
                             sidebarCollapsed ? "ml-16" : "ml-52"
                         }`}
                     >
