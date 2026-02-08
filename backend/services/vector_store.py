@@ -1,10 +1,13 @@
+import logging
 import numpy as np
 import faiss
 from typing import List, Tuple, Optional
-from openai import OpenAI
+from openai import OpenAI, NotFoundError
 
 from config import get_settings
 from models.facility import Facility
+
+logger = logging.getLogger(__name__)
 
 
 class VectorStore:
@@ -12,7 +15,8 @@ class VectorStore:
 
     def __init__(self, model_name: Optional[str] = None):
         settings = get_settings()
-        self.model_name = model_name or settings.embedding_model
+        self.default_model = "text-embedding-3-small"
+        self.model_name = model_name or settings.embedding_model or self.default_model
         self.client = OpenAI(api_key=settings.openai_api_key)
         self.index: Optional[faiss.IndexFlatIP] = None
         self.facility_ids: List[str] = []
@@ -65,14 +69,33 @@ class VectorStore:
             return np.array([], dtype=np.float32)
 
         embeddings: List[List[float]] = []
+        model_to_use = self.model_name
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
-            response = self.client.embeddings.create(
-                model=self.model_name,
-                input=batch,
-            )
+            try:
+                response = self.client.embeddings.create(
+                    model=model_to_use,
+                    input=batch,
+                )
+            except NotFoundError:
+                if model_to_use != self.default_model:
+                    logger.warning(
+                        "Embedding model '%s' not found. Falling back to '%s'.",
+                        model_to_use,
+                        self.default_model,
+                    )
+                    model_to_use = self.default_model
+                    response = self.client.embeddings.create(
+                        model=model_to_use,
+                        input=batch,
+                    )
+                else:
+                    raise
             data_sorted = sorted(response.data, key=lambda d: d.index)
             embeddings.extend([item.embedding for item in data_sorted])
+
+        if model_to_use != self.model_name:
+            self.model_name = model_to_use
 
         arr = np.array(embeddings, dtype=np.float32)
         norms = np.linalg.norm(arr, axis=1, keepdims=True)

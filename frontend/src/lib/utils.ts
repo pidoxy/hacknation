@@ -10,43 +10,31 @@ export function stripEmoji(text: string) {
 }
 
 export function formatTtsText(text: string) {
-    const clean = stripEmoji(text);
-    const boldMatches = Array.from(clean.matchAll(/\*\*(.+?)\*\*/g))
-        .map((m) => m[1].trim())
-        .filter(Boolean);
-    const uniqueBold = Array.from(new Set(boldMatches));
-    if (uniqueBold.length >= 2) {
-        return uniqueBold.join(", ");
-    }
+    let t = stripEmoji(text);
 
-    const listLines = clean
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => /^(\d+\.|[-*•])\s+/.test(line));
-    if (listLines.length >= 2) {
-        const names = listLines
-            .map((line) =>
-                line
-                    .replace(/^(\d+\.|[-*•])\s+/, "")
-                    .replace(/\*\*(.+?)\*\*/g, "$1")
-                    .split(" - ")[0]
-                    .split(" — ")[0]
-                    .trim()
-            )
-            .filter(Boolean);
-        const uniqueNames = Array.from(new Set(names));
-        if (uniqueNames.length >= 2) {
-            return uniqueNames.join(", ");
-        }
-    }
+    // Remove code blocks
+    t = t.replace(/```[\s\S]*?```/g, "");
 
-    let t = clean;
-    t = t.replace(/```[\s\S]*?```/g, " ");
+    // Remove markdown headings but keep the text
     t = t.replace(/^#{1,6}\s+/gm, "");
+
+    // Remove bold/italic markers but keep text
     t = t.replace(/\*\*(.+?)\*\*/g, "$1");
     t = t.replace(/[_*`]/g, "");
-    t = t.replace(/^\s*[-*•]\s+/gm, "");
+
+    // Convert numbered lists into natural speech: "1. Item" → "Item."
     t = t.replace(/^\s*\d+\.\s+/gm, "");
+
+    // Convert bullet lists into natural speech
+    t = t.replace(/^\s*[-*•]\s+/gm, "");
+
+    // Collapse multiple newlines into sentence breaks
+    t = t.replace(/\n{2,}/g, ". ");
+    t = t.replace(/\n/g, ". ");
+
+    // Clean up punctuation
+    t = t.replace(/\.\s*\./g, ".");
     t = t.replace(/\s{2,}/g, " ");
+
     return t.trim();
 }

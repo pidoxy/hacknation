@@ -27,6 +27,7 @@ export default function CommandCenter() {
     const [isListening, setIsListening] = useState(false);
     const [autoSpeak, setAutoSpeak] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
     const [expandedTrace, setExpandedTrace] = useState<string | null>(null);
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -90,7 +91,7 @@ export default function CommandCenter() {
             setMessages((prev) => [...prev, assistantMsg]);
 
             if (autoSpeak && data.answer) {
-                speakResponse(data.answer);
+                speakResponse(data.answer, assistantMsg.id);
             }
         },
     });
@@ -169,16 +170,19 @@ export default function CommandCenter() {
             window.speechSynthesis.cancel();
         }
         setIsSpeaking(false);
+        setSpeakingMsgId(null);
     };
 
-    const speakResponse = async (text: string) => {
-        // If already speaking, stop
+    const speakResponse = async (text: string, msgId?: string) => {
+        // If already speaking, stop first
         if (isSpeaking) {
             stopSpeaking();
-            return;
+            // If clicking the same message's button, just stop (toggle off)
+            if (msgId && msgId === speakingMsgId) return;
         }
-        const cleanText = formatTtsText(text).substring(0, 500);
+        const cleanText = formatTtsText(text).substring(0, 1000);
         setIsSpeaking(true);
+        setSpeakingMsgId(msgId || null);
         try {
             const res = await fetch(`${apiBase}/api/voice/tts`, {
                 method: "POST",
@@ -193,23 +197,37 @@ export default function CommandCenter() {
             }
             const audio = new Audio(audioUrl);
             audioRef.current = audio;
-            audio.onended = () => setIsSpeaking(false);
-            audio.onerror = () => setIsSpeaking(false);
+            audio.onended = () => { setIsSpeaking(false); setSpeakingMsgId(null); };
+            audio.onerror = () => { setIsSpeaking(false); setSpeakingMsgId(null); };
             await audio.play();
         } catch {
             if ("speechSynthesis" in window) {
                 const utterance = new SpeechSynthesisUtterance(cleanText);
                 utterance.rate = 1;
-                utterance.onend = () => setIsSpeaking(false);
-                utterance.onerror = () => setIsSpeaking(false);
+                utterance.onend = () => { setIsSpeaking(false); setSpeakingMsgId(null); };
+                utterance.onerror = () => { setIsSpeaking(false); setSpeakingMsgId(null); };
                 window.speechSynthesis.cancel();
                 window.speechSynthesis.speak(utterance);
                 return;
             }
             setIsSpeaking(false);
+            setSpeakingMsgId(null);
             console.error("TTS failed");
         }
     };
+
+    // Cleanup audio on unmount
+    useEffect(() => {
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current = null;
+            }
+            if ("speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -670,13 +688,19 @@ export default function CommandCenter() {
 
                                     {/* TTS button */}
                                     <button
-                                        onClick={() => speakResponse(msg.content)}
+                                        onClick={() => speakResponse(msg.content, msg.id)}
                                         className={`flex items-center gap-1 text-xs px-1 ${
-                                            isSpeaking ? "text-red-500 hover:text-red-700" : "text-gray-400 hover:text-blue-600"
+                                            isSpeaking && speakingMsgId === msg.id
+                                                ? "text-red-500 hover:text-red-700"
+                                                : "text-gray-400 hover:text-blue-600"
                                         }`}
                                     >
-                                        {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-                                        {isSpeaking ? "Stop" : "Listen"}
+                                        {isSpeaking && speakingMsgId === msg.id ? (
+                                            <VolumeX className="w-3 h-3" />
+                                        ) : (
+                                            <Volume2 className="w-3 h-3" />
+                                        )}
+                                        {isSpeaking && speakingMsgId === msg.id ? "Stop" : "Listen"}
                                     </button>
                                 </div>
                             )}
@@ -698,6 +722,15 @@ export default function CommandCenter() {
 
                         {/* Input */}
                         <div className="p-4 border-t border-slate-200">
+                            {isSpeaking && (
+                                <button
+                                    onClick={stopSpeaking}
+                                    className="w-full mb-2 flex items-center justify-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md py-1.5 hover:bg-red-100 transition-colors"
+                                >
+                                    <VolumeX className="w-3.5 h-3.5" />
+                                    Stop Audio
+                                </button>
+                            )}
                             <div className="flex items-center gap-2">
                                 <div className="flex-1 flex items-center bg-slate-50 rounded-md px-4 py-2 border border-slate-200 focus-within:border-blue-400">
                                     <input
