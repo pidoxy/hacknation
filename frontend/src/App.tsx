@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Analytics } from "@vercel/analytics/react";
@@ -18,12 +19,21 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
     return (
         <QueryClientProvider client={queryClient}>
             <BrowserRouter>
                 <div className="min-h-screen bg-slate-50">
-                    <Sidebar />
-                    <main className="ml-52 min-h-screen">
+                    <Sidebar
+                        collapsed={sidebarCollapsed}
+                        onToggle={() => setSidebarCollapsed((prev) => !prev)}
+                    />
+                    <main
+                        className={`min-h-screen transition-[margin] duration-200 ${
+                            sidebarCollapsed ? "ml-16" : "ml-52"
+                        }`}
+                    >
                         <Routes>
                             <Route path="/" element={<CommandCenter />} />
                             <Route path="/idp" element={<IDPAgentView />} />

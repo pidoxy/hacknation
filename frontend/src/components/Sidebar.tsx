@@ -6,6 +6,8 @@ import {
     Search,
     ShieldCheck,
     Activity,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 
 const navItems = [
@@ -16,19 +18,42 @@ const navItems = [
     { to: "/data-integrity", icon: ShieldCheck, label: "Data Integrity" },
 ];
 
-export default function Sidebar() {
+type SidebarProps = {
+    collapsed: boolean;
+    onToggle: () => void;
+};
+
+export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     return (
-        <aside className="w-52 bg-white border-r border-slate-200 flex flex-col h-screen fixed left-0 top-0 z-20">
+        <aside
+            className={`bg-white border-r border-slate-200 flex flex-col h-screen fixed left-0 top-0 z-20 transition-[width] duration-200 ${
+                collapsed ? "w-16" : "w-52"
+            }`}
+        >
             {/* Logo */}
-            <div className="p-4 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 bg-blue-600 rounded-md flex items-center justify-center shadow-sm">
-                        <Activity className="w-5 h-5 text-white" />
+            <div className="p-4 border-b border-slate-200 relative">
+                <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"}`}>
+                    <div className="flex items-center gap-2">
+                        <div className="w-9 h-9 bg-blue-600 rounded-md flex items-center justify-center shadow-sm">
+                            <Activity className="w-5 h-5 text-white" />
+                        </div>
+                        {!collapsed && (
+                            <div>
+                                <h1 className="text-sm font-semibold text-slate-900">Virtue Foundation</h1>
+                                <p className="text-xs text-slate-500">Intelligence Platform</p>
+                            </div>
+                        )}
                     </div>
-                    <div>
-                        <h1 className="text-sm font-semibold text-slate-900">Virtue Foundation</h1>
-                        <p className="text-xs text-slate-500">Intelligence Platform</p>
-                    </div>
+                    <button
+                        onClick={onToggle}
+                        className={`p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 ${
+                            collapsed ? "absolute right-2 top-4" : ""
+                        }`}
+                        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                    >
+                        {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                    </button>
                 </div>
             </div>
 
@@ -44,22 +69,24 @@ export default function Sidebar() {
                                 isActive
                                     ? "bg-blue-50 text-blue-700"
                                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                            }`
+                            } ${collapsed ? "justify-center" : ""}`
                         }
+                        title={item.label}
+                        aria-label={item.label}
                     >
                         <item.icon className="w-5 h-5" />
-                        {item.label}
+                        {collapsed ? <span className="sr-only">{item.label}</span> : item.label}
                     </NavLink>
                 ))}
             </nav>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-200">
+            <div className={`p-4 border-t border-slate-200 ${collapsed ? "flex justify-center" : ""}`}>
                 <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md w-fit">
                     <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                    System Operational
+                    {!collapsed && "System Operational"}
                 </div>
-                <p className="text-xs text-slate-400 mt-2">Ghana, West Africa</p>
+                {!collapsed && <p className="text-xs text-slate-400 mt-2">Ghana, West Africa</p>}
             </div>
         </aside>
     );
