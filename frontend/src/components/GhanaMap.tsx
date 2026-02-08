@@ -1,0 +1,85 @@
+import { useEffect, useRef } from "react";
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
+import type { FacilityMapData } from "@/types/facility";
+import "leaflet/dist/leaflet.css";
+
+interface GhanaMapProps {
+    facilities: FacilityMapData[];
+    selectedRegion?: string;
+    onFacilityClick?: (id: string) => void;
+    height?: string;
+    className?: string;
+}
+
+const typeColors: Record<string, string> = {
+    hospital: "#2563eb",
+    clinic: "#22c55e",
+    dentist: "#f59e0b",
+    farmacy: "#a855f7",
+    doctor: "#06b6d4",
+    unknown: "#94a3b8",
+};
+
+function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
+    const map = useMap();
+    useEffect(() => {
+        map.setView(center, zoom);
+    }, [center, zoom, map]);
+    return null;
+}
+
+export default function GhanaMap({
+    facilities,
+    selectedRegion,
+    onFacilityClick,
+    height = "100%",
+    className = "",
+}: GhanaMapProps) {
+    const center: [number, number] = [7.9465, -1.0232];
+    const zoom = 7;
+
+    return (
+        <div className={className} style={{ height }}>
+            <MapContainer
+                center={center}
+                zoom={zoom}
+                style={{ height: "100%", width: "100%", borderRadius: "0.75rem" }}
+                scrollWheelZoom={true}
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapController center={center} zoom={zoom} />
+
+                {facilities.map((f) => (
+                    <CircleMarker
+                        key={f.uniqueId}
+                        center={[f.lat, f.lng]}
+                        radius={f.hasAnomalies ? 6 : 4}
+                        pathOptions={{
+                            color: f.hasAnomalies ? "#ef4444" : typeColors[f.facilityType || "unknown"] || "#94a3b8",
+                            fillColor: f.hasAnomalies ? "#fca5a5" : typeColors[f.facilityType || "unknown"] || "#94a3b8",
+                            fillOpacity: 0.7,
+                            weight: f.hasAnomalies ? 2 : 1,
+                        }}
+                        eventHandlers={{
+                            click: () => onFacilityClick?.(f.uniqueId),
+                        }}
+                    >
+                        <Popup>
+                            <div className="text-sm">
+                                <p className="font-semibold">{f.name}</p>
+                                <p className="text-gray-500 capitalize">{f.facilityType || "Unknown type"}</p>
+                                {f.region && <p className="text-gray-500">{f.region}</p>}
+                                {f.hasAnomalies && (
+                                    <p className="text-red-600 text-xs mt-1">Anomaly Detected</p>
+                                )}
+                            </div>
+                        </Popup>
+                    </CircleMarker>
+                ))}
+            </MapContainer>
+        </div>
+    );
+}
