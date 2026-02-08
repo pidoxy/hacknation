@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Virtue Foundation Intelligence Platform - Project Report</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #1e293b;
+    background: #fff;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 28px 32px 20px;
+    font-size: 10.5px;
+    line-height: 1.45;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 2.5px solid #2563eb;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+  .header-left h1 {
+    font-size: 19px;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.3px;
+  }
+  .header-left .subtitle {
+    font-size: 11px;
+    color: #475569;
+    margin-top: 2px;
+  }
+  .header-right {
+    text-align: right;
+    font-size: 9px;
+    color: #64748b;
+    line-height: 1.5;
+  }
+  .header-right .badge {
+    display: inline-block;
+    background: #2563eb;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  /* Sections */
+  .section { margin-bottom: 12px; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e40af;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 3px;
+    margin-bottom: 6px;
+  }
+  p { margin-bottom: 5px; }
+
+  /* Two column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Features list */
+  .features { list-style: none; }
+  .features li {
+    padding: 4px 0;
+    padding-left: 14px;
+    position: relative;
+  }
+  .features li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 6px;
+    height: 6px;
+    background: #2563eb;
+    border-radius: 50%;
+  }
+  .features li strong {
+    color: #0f172a;
+    font-weight: 600;
+  }
+
+  /* Tech table */
+  .tech-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5px;
+  }
+  .tech-table th {
+    text-align: left;
+    font-weight: 600;
+    color: #475569;
+    padding: 3px 6px;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 8.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tech-table td {
+    padding: 3px 6px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+  }
+  .tech-table td:first-child {
+    font-weight: 600;
+    color: #1e40af;
+    white-space: nowrap;
+    width: 90px;
+  }
+
+  /* Pipeline flow */
+  .pipeline {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 9.5px;
+    color: #334155;
+    text-align: center;
+    line-height: 1.6;
+  }
+  .pipeline .arrow { color: #2563eb; font-weight: 700; margin: 0 2px; }
+  .pipeline .highlight { font-weight: 700; color: #0f172a; }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .stat-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .stat-card .number {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e40af;
+    line-height: 1.1;
+  }
+  .stat-card .number.red { color: #dc2626; }
+  .stat-card .number.amber { color: #d97706; }
+  .stat-card .label {
+    font-size: 8px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+
+  /* Impact section */
+  .impact-box {
+    background: #eff6ff;
+    border-left: 3px solid #2563eb;
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    font-size: 10px;
+    color: #1e3a5f;
+    line-height: 1.5;
+  }
+  .impact-box em { font-style: italic; color: #1e40af; }
+
+  /* Footer */
+  .footer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8.5px;
+    color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>Virtue Foundation Intelligence Platform</h1>
+    <div class="subtitle">Bridging Medical Deserts with AI-Powered Healthcare Gap Analysis</div>
+  </div>
+  <div class="header-right">
+    <div class="badge">Databricks Track</div><br>
+    Hack-Nation Global AI Hackathon<br>
+    Feb 7-8, 2026<br>
+    MIT Sloan AI Club &amp; MIT Club of NorCal
+  </div>
+</div>
+
+<!-- KEY METRICS -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="number">797</div>
+    <div class="label">Facilities Analyzed</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">16</div>
+    <div class="label">Regions Covered</div>
+  </div>
+  <div class="stat-card">
+    <div class="number red">10</div>
+    <div class="label">Medical Deserts Found</div>
+  </div>
+  <div class="stat-card">
+    <div class="number amber">67</div>
+    <div class="label">Critical Capability Gaps</div>
+  </div>
+</div>
+
+<!-- PROBLEM + SOLUTION -->
+<div class="section">
+  <div class="section-title">Problem</div>
+  <p>By 2030, the world faces a shortage of 10 million healthcare workers &mdash; not because expertise doesn't exist, but because it is not intelligently coordinated. The Virtue Foundation operates in regions where facility data is fragmented, unstructured, and incomplete, making it impossible for NGO planners to identify where critical care is available and where it is dangerously absent. Lives are lost not from a lack of expertise, but from a lack of coordination.</p>
+</div>
+
+<div class="section">
+  <div class="section-title">Solution</div>
+  <p>An agentic AI intelligence layer that ingests real healthcare facility records across Ghana, extracts structured capabilities from messy free-form text using Intelligent Document Processing, and identifies medical deserts where entire populations lack access to essential services like surgery, emergency care, or maternal health &mdash; enabling the Virtue Foundation to act with unprecedented speed and precision.</p>
+</div>
+
+<!-- CORE FEATURES + TECH STACK (two columns) -->
+<div class="two-col">
+  <div class="section">
+    <div class="section-title">Core Features</div>
+    <ul class="features">
+      <li><strong>IDP Extraction Engine</strong> &mdash; GPT-4o-mini parses unstructured facility text into structured capabilities, procedures, and equipment with per-field confidence scores (0&ndash;99%)</li>
+      <li><strong>AI Command Center</strong> &mdash; Natural language queries powered by a LangGraph multi-agent pipeline with 6 specialized sub-agents, FAISS vector search, and full agent tracing with row-level citations</li>
+      <li><strong>Medical Desert Detection</strong> &mdash; 10 capability categories mapped across 16 regions; regions missing 3+ capabilities flagged as medical deserts</li>
+      <li><strong>Strategic Resource Planner</strong> &mdash; Gap matrix (16&times;10), AI deployment recommendations, priority scoring, and 4-step plan builder</li>
+      <li><strong>Interactive Map</strong> &mdash; Leaflet map with facility markers, region polygons, and desert zone overlays</li>
+      <li><strong>Voice I/O</strong> &mdash; ElevenLabs speech-to-text input and text-to-speech narration for field accessibility</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Technical Architecture</div>
+    <table class="tech-table">
+      <tr><th>Layer</th><th>Technologies</th></tr>
+      <tr><td>Backend</td><td>FastAPI, Python 3.11, Uvicorn, Pydantic v2, Pandas</td></tr>
+      <tr><td>AI / ML</td><td>LangGraph multi-agent orchestration, GPT-4o-mini, FAISS-CPU, OpenAI Embeddings (text-embedding-3-small)</td></tr>
+      <tr><td>IDP</td><td>GPT-4o-mini structured extraction with confidence scoring and agent tracing</td></tr>
+      <tr><td>Voice</td><td>ElevenLabs TTS (eleven_multilingual_v2) + STT (scribe_v1)</td></tr>
+      <tr><td>Frontend</td><td>React 19, TypeScript 5.7, Vite 6, Tailwind CSS 4, TanStack Query v5</td></tr>
+      <tr><td>Maps</td><td>Leaflet + react-leaflet with custom region polygons and desert overlays</td></tr>
+      <tr><td>Geospatial</td><td>Haversine distance, nearest-facility queries, cold-spot detection</td></tr>
+      <tr><td>Deploy</td><td>Railway (backend, Nixpacks) + Vercel (frontend, SPA routing)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- DATA PIPELINE -->
+<div class="section">
+  <div class="section-title">Data Pipeline</div>
+  <div class="pipeline">
+    <span class="highlight">Raw CSV (1,003 records)</span>
+    <span class="arrow">&rarr;</span> Region Normalization
+    <span class="arrow">&rarr;</span> Deduplication &amp; Merging
+    <span class="arrow">&rarr;</span> Geocoding
+    <span class="arrow">&rarr;</span> Anomaly Detection (43 flagged)
+    <span class="arrow">&rarr;</span> FAISS Vector Index
+    <span class="arrow">&rarr;</span> <span class="highlight">797 Clean, Searchable Facilities</span>
+  </div>
+</div>
+
+<!-- IMPACT -->
+<div class="section">
+  <div class="section-title">Impact</div>
+  <div class="impact-box">
+    The platform replaces manual spreadsheet analysis with AI-driven insights, answering critical questions instantly: <em>Which regions have zero emergency care? Where should the next surgical unit be deployed? Which facility claims don't match their data?</em> By identifying 10 medical deserts and 67 critical capability gaps across Ghana, it provides a clear, data-driven roadmap for intervention &mdash; ensuring that healthcare investment reaches the communities where it will save the most lives. Every data point extracted represents a patient who could receive care sooner.
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span>Databricks x Hack-Nation 2026 &nbsp;|&nbsp; Bridging Medical Deserts Track &nbsp;|&nbsp; Dataset: Virtue Foundation Ghana Facilities</span>
+  <span>All data is real &mdash; zero mock endpoints</span>
+</div>
+
+</body>
+</html>
