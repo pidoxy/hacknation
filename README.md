@@ -1,6 +1,8 @@
 # Virtue Foundation Intelligence Platform
 
-**Bridging Medical Deserts with AI-Powered Healthcare Gap Analysis**
+A team-built hackathon prototype for exploring healthcare-facility capabilities and gaps in Ghana.
+
+**2nd place — Databricks challenge, MIT Hack-Nation 2026.**
 
 Databricks x Hack-Nation Global AI Hackathon | Feb 7–8, 2026
 
@@ -12,19 +14,19 @@ Databricks x Hack-Nation Global AI Hackathon | Feb 7–8, 2026
 
 ## Problem
 
-By 2030, the world faces a shortage of **10 million healthcare workers**. The Virtue Foundation operates in regions where skilled doctors exist but remain disconnected from the communities that need them. Facility data is fragmented, unstructured, and incomplete — making it impossible for NGO planners to identify where critical care is available and where it is dangerously absent.
+Facility information is fragmented across records and free-form descriptions. Planners need a way to inspect reported capabilities, trace answers to source records and identify gaps for further investigation.
 
 ## Solution
 
-We built an **agentic AI intelligence layer** that ingests **797 real healthcare facility records** across Ghana's 16 regions, extracts structured capabilities from messy free-form text, and identifies medical deserts where entire populations lack access to essential services like surgery, emergency care, or maternal health.
+We built an **agentic AI intelligence layer** that ingests **797 real healthcare facility records** across Ghana's 16 regions, extracts structured capabilities from messy free-form text, and flags regional capability gaps for review. Missing information in a facility record is not proof that a service is unavailable.
 
 ## Core Features
 
-- **Intelligent Document Processing (IDP)** — GPT-4o-mini powered extraction engine that parses unstructured facility text into structured, queryable data with per-field confidence scores (0–99%).
+- **Intelligent Document Processing (IDP)** — GPT-4o-mini powered extraction engine that parses unstructured facility text into structured, queryable data with model-generated per-field confidence scores (0–99%); these are not calibrated probabilities.
 
 - **AI Command Center** — Natural language query interface backed by a LangGraph multi-agent pipeline. A supervisor agent classifies queries into 6 categories and routes to specialized sub-agents that search a FAISS vector store. Every response includes full agent tracing with row-level citations.
 
-- **Medical Desert Detection** — Automated analysis mapping 10 capability categories across all 16 regions. Regions missing 3+ capabilities are flagged as medical deserts — we identified **10 critical deserts** affecting millions.
+- **Medical Desert Detection** — Automated analysis mapping 10 capability categories across all 16 regions. The prototype flags regions missing 3+ recorded capabilities; its demonstration reported **10 flagged regions**. These are heuristic dataset findings, not independently validated measures of population access.
 
 - **Strategic Resource Planner** — Interactive gap matrix (16 regions × 10 capabilities) with AI-generated deployment recommendations, priority scoring, and a 4-step plan builder for NGO resource allocation.
 
@@ -110,9 +112,11 @@ npm run dev
 | **Tech Video** | https://youtu.be/jgot8fLplxw |
 | **Dataset** | [Virtue Foundation Ghana v0.3 (CSV)](https://drive.google.com/file/d/1qgmLHrJYu8TKY2UeQ-VFD4PQ_avPoZ3d/view) |
 
-## Impact
+## Interpretation and limits
 
-The platform transforms the Virtue Foundation's ability to allocate resources by replacing manual spreadsheet analysis with AI-driven insights. By identifying **10 medical deserts** and **67 critical capability gaps**, it provides a clear roadmap for intervention — ensuring healthcare investment reaches the communities where it will save the most lives.
+The demonstration reported **10 flagged regions** and **67 capability gaps** under its dataset rules. These outputs support exploration of the supplied records; they do not establish real-world service absence, adoption by the Virtue Foundation or measured health outcomes. City-level geocoding with jitter is approximate, and generated recommendations require human review.
+
+This is collaborative hackathon work. The repository documents the team's implementation, rather than implying that one contributor independently built every component.
 
 ---
 
